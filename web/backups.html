@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>RoFlow · Backups</title>
+  <link rel="stylesheet" href="./backups.css">
+</head>
+<body>
+  <header>
+    <div>
+      <p class="eyebrow">ROFLOW VERSION HISTORY</p>
+      <h1>Backups</h1>
+      <p class="sub">Every checkpoint is a Git-backed project snapshot. Restoring never rewrites your branch history.</p>
+    </div>
+    <div class="create">
+      <input id="backupNote" maxlength="120" placeholder="What changed in this version?">
+      <button id="createBtn">Create backup</button>
+    </div>
+  </header>
+  <section class="notice"><strong>Safe restore</strong><span>Before RoFlow restores an older version, it automatically saves your current state as the next version.</span></section>
+  <main>
+    <div id="empty" class="empty hidden">No backups yet.</div>
+    <div id="list" class="list"></div>
+  </main>
+  <div id="toast" class="toast"></div>
+  <script src="./backups.js"></script>
+</body>
+</html>
