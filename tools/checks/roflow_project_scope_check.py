@@ -28,6 +28,10 @@ need(web,'status.releaseGateTaskIds',"project-scoped release gate")
 need(studio,'PROJECT_SCOPE=new URLSearchParams(location.search).get("project")',"UI Studio project scope")
 need(studio,'status?.uiStates',"manifest-driven UI Studio rail")
 need(studio,'function previewVisible(n)',"generic authored preview")
+need(studio,'let PRIMARY_MODEL_PATH=""',"project-defined primary UI model")
+need(studio,'state.targetPath===PRIMARY_MODEL_PATH',"project primary model merge")
+need(studio,'roflow-request-project-picker',"UI Studio delegates project switching")
+need(web,'roflow-request-project-picker',"shell owns project switching")
 
 for forbidden,label in [
     ('localStorage.setItem("roflowPlannerShowCompleted"', "global Planner completion preference"),
