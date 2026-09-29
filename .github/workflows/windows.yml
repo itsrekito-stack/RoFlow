@@ -1,0 +1,110 @@
+name: Build RoFlow for Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "package.json"
+      - "scripts/**"
+      - "src-tauri/**"
+      - "ui-studio/**"
+      - "web/**"
+      - "tools/checks/**"
+      - ".github/workflows/windows.yml"
+
+concurrency:
+  group: roflow-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Project scope contract
+        run: python tools/checks/roflow_project_scope_check.py
+
+      - name: Safe AI Sync source contract
+        run: python tools/checks/roflow_safe_sync_check.py
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust compile check
+        run: cargo check --manifest-path src-tauri/Cargo.toml
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Stamp installer build version
+        shell: pwsh
+        run: |
+          $path = "src-tauri/tauri.conf.json"
+          $config = Get-Content $path -Raw | ConvertFrom-Json
+          $config.version = "0.1.${{ github.run_number }}"
+          $config | ConvertTo-Json -Depth 20 | Set-Content $path -Encoding utf8
+
+      - name: Build RoFlow
+        env:
+          ROFLOW_BUILD_SHA: ${{ github.sha }}
+        run: npm run build
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: RoFlow-Windows
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+
+      - name: Prepare auto-update channel
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem "src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1
+          if (-not $installer) { throw "RoFlow NSIS installer not found" }
+          $updateDir = Join-Path $env:RUNNER_TEMP "roflow-update"
+          New-Item -ItemType Directory -Force -Path $updateDir | Out-Null
+          $target = Join-Path $updateDir "RoFlow-latest.exe"
+          Copy-Item $installer.FullName $target -Force
+          $sha = (Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant()
+          $package = Get-Content "package.json" -Raw | ConvertFrom-Json
+          $manifest = [ordered]@{
+            version = $package.version
+            installerVersion = "0.1.${{ github.run_number }}"
+            sourceSha = "${{ github.sha }}"
+            sha256 = $sha
+            filename = "RoFlow-latest.exe"
+            publishedAt = (Get-Date).ToUniversalTime().ToString("o")
+          }
+          $manifest | ConvertTo-Json | Set-Content (Join-Path $updateDir "latest.json") -Encoding utf8
+
+      - name: Publish auto-update channel
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan roflow-update-publish
+          git rm -rf .
+          Copy-Item (Join-Path $env:RUNNER_TEMP "roflow-update/latest.json") "latest.json"
+          Copy-Item (Join-Path $env:RUNNER_TEMP "roflow-update/RoFlow-latest.exe") "RoFlow-latest.exe"
+          git add latest.json RoFlow-latest.exe
+          git commit -m "roflow update ${{ github.sha }}"
+          git push origin HEAD:refs/heads/roflow-update --force
