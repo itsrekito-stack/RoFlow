@@ -1,8 +1,8 @@
 {
   "name": "roflow",
   "private": true,
-  "version": "0.0.10",
-  "description": "RoFlow desktop workflow hub for Roblox development.",
+  "version": "0.1.0",
+  "description": "Standalone project-scoped desktop workflow hub for Roblox development.",
   "scripts": {
     "tauri": "tauri",
     "prepare:roflow": "node ./scripts/sync-ui-studio.mjs && tauri icon ./web/roflow-icon.svg",
