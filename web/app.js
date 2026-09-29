@@ -68,12 +68,33 @@ function clearProjectDom(){
  state.planner=null;
  state.runtimeGate=null;
  state.selectedFile="";
+ state.logs=["Project context: "+(state.displayName||"Project")];
+
+ if($("#logOutput"))$("#logOutput").textContent=state.logs[0];
  if($("#recentTasks"))renderTasks([]);
  if($("#todayTaskList")){
   const empty={todayDate:localPlannerDate(),today:[],roadmap:[]};
   renderPlanner(empty);
   state.planner=null;
  }
+
+ if($("#fileList"))$("#fileList").innerHTML='<div class="empty-state">Load Changes for this project.</div>';
+ if($("#diffTitle"))$("#diffTitle").textContent="No file selected";
+ if($("#diffMeta"))$("#diffMeta").textContent="PROJECT";
+ if($("#diffOutput"))$("#diffOutput").innerHTML='<div class="empty-state">No diff loaded for this project.</div>';
+ if($("#commitMessage"))$("#commitMessage").value="";
+
+ if($("#syncOutput"))$("#syncOutput").textContent="Ready for project-scoped AI Sync.";
+ if($("#cycleOutput"))$("#cycleOutput").textContent="";
+ if($("#cycleTitle"))$("#cycleTitle").textContent="DEV CYCLE";
+ if($("#rojoOutput"))$("#rojoOutput").textContent="";
+ if($("#rojoPageState"))$("#rojoPageState").textContent="Project changed · refresh Rojo status";
+ if($("#rojoPageDetail"))$("#rojoPageDetail").textContent="";
+
+ if($("#backupValue"))$("#backupValue").textContent="—";
+ if($("#backupStats"))$("#backupStats").textContent="Loading this project's checkpoints…";
+ if($("#backupNavVersion"))$("#backupNavVersion").textContent="—";
+
  if($("#healthValue")){$("#healthValue").textContent="—";$("#healthValue").style.color=""}
  if($("#healthStats"))$("#healthStats").textContent="Run Health Check for this project.";
  if($("#healthList"))$("#healthList").innerHTML='<div class="empty-state">No health result for this project yet.</div>';
@@ -466,7 +487,7 @@ async function runSync(){
     +(data.conflictRecoveries?.length?"\nRecovery copies: "+data.conflictRecoveries.join(", "):"")
     +(data.preservedStashes?.length?"\nPreserved stash: "+data.preservedStashes.map(shortSha).join(", "):"")
    :"";
-  out.textContent=(data.changed?"Updated to ":"Already current at ")+shortSha(data.head)+"\n"+data.subject+(data.modelMerged?"\nBloomUI.model.json merged safely":"")+(data.stashed&&data.restored?"\nOther local changes restored":"")+recovery+(data.backupVersion?"\nCheckpoint: "+data.backupVersion:"");
+  out.textContent=(data.changed?"Updated to ":"Already current at ")+shortSha(data.head)+"\n"+data.subject+(data.modelMerged?"\nAuthored UI model merged safely":"")+(data.stashed&&data.restored?"\nOther local changes restored":"")+recovery+(data.backupVersion?"\nCheckpoint: "+data.backupVersion:"");
   await refresh();
   if(state.currentPage==="ui")await ensureUiStudio(true);
   else if(state.studioLoaded)unloadUiStudio("AI Sync while inactive");
