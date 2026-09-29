@@ -1,27 +1,29 @@
-# Bloom UI Studio — Editor Engine V2
+# RoFlow UI Studio — Editor Engine V2
 
-Engine V2 replaces the authored viewport renderer with a Canvas2D scene engine.
+Engine V2 is the Canvas2D scene renderer used by RoFlow UI Studio.
 
 ## Ownership
 
-- Canvas2D owns Roblox GuiObject drawing, scene traversal, clipping, image/text rendering, z-order and hit-testing.
-- UI STATES, Explorer, Inspector, toolbar and dialogs remain normal desktop-editor DOM.
-- #guiRoot now receives invisible geometry proxies only. They keep mature transform/measurement tools compatible while visual rendering no longer creates nested HTML for every Roblox UI object.
-- BloomUI.model.json and BloomLoadingTemplate.model.json remain the authored source of truth.
+- Canvas2D owns Roblox GuiObject drawing, traversal, clipping, image/text rendering, z-order and hit-testing.
+- Project-defined UI states, Explorer, Inspector, toolbar and dialogs remain normal editor DOM.
+- `#guiRoot` receives lightweight invisible geometry proxies for transform/measurement tooling.
+- The connected project's declared Rojo `.model.json` files remain the authored source of truth.
+
+RoFlow does not assume a particular game name or a fixed UI filename. Model paths and focus roots come from `roflow.project.json`.
 
 ## Input
 
 - Two-finger trackpad scroll pans the stage through the native scroller.
-- Pinch / Ctrl+wheel uses the existing bounded zoom path.
-- Canvas hit-testing routes selection and drag into the existing authored-model transform transaction.
-- Resize handles remain the mature overlay implementation in this migration so editing behavior does not regress.
+- Pinch / Ctrl+wheel uses bounded zoom.
+- Canvas hit-testing routes selection and drag into authored-model transform transactions.
+- Resize handles remain DOM overlays so editing behavior stays predictable.
 
 ## Rendering
 
-Engine V2 supports Frame/ScrollingFrame, text classes, image classes, UICorner, UIStroke, UIPadding, UIListLayout, UIGridLayout, UIAspectRatioConstraint, clipping, ZIndex, rotation, runtime preview visibility/text/image overrides, and hidden-object authoring opacity.
+Engine V2 supports Frame/ScrollingFrame, text classes, image classes, UICorner, UIStroke, UIPadding, UIListLayout, UIGridLayout, UIAspectRatioConstraint, clipping, ZIndex, rotation and hidden-object authoring opacity.
 
-Images are cached asynchronously. RoFlow thumbnail resolution still uses the native bridge; standalone web mode still uses the local thumbnail endpoint.
+Images are cached asynchronously. Desktop mode resolves Roblox thumbnails through the native RoFlow bridge; browser developer fallback uses its thumbnail endpoint.
 
 ## Performance direction
 
-The expensive nested visual DOM tree is no longer built on each render. A single canvas paints the viewport. Lightweight invisible proxy rectangles are temporary compatibility geometry for Inspector, smart guides, group operations and resize math. They can be retired independently in a later engine pass without changing the authored model format.
+The visual viewport is painted by one canvas instead of rebuilding a deep visual DOM tree on every render. Geometry proxies can be reduced later without changing the authored model format or the project manifest contract.
