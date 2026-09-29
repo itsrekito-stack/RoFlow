@@ -1,8 +1,8 @@
 [package]
 name = "roflow"
-version = "0.0.10"
+version = "0.1.0"
 description = "RoFlow desktop workflow hub"
-authors = ["Bloom RNG"]
+authors = ["RoFlow"]
 edition = "2021"
 
 [lib]
