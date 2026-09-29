@@ -13,11 +13,10 @@ const TEXT_CLASSES=new Set(["TextLabel","TextButton","TextBox"]);
 const IMAGE_CLASSES=new Set(["ImageLabel","ImageButton"]);
 const CONTAINERS=new Set(["ScreenGui","Frame","ScrollingFrame","TextButton","ImageButton"]);
 const CREATION_CONTAINERS=new Set(["ScreenGui","Frame","ScrollingFrame"]);
-const DEFAULT_TARGET="src/StarterGui/BloomUI.model.json";
-const LOADING_TARGET="src/ReplicatedFirst/BloomLoadingTemplate.model.json";
 const PROJECT_SCOPE=new URLSearchParams(location.search).get("project")||"unscoped";
+let PRIMARY_MODEL_PATH="";
 const scopedKey=name=>name+":"+PROJECT_SCOPE;
-function lastGoodModelKey(){return scopedKey("RoFlowUIStudioLastGoodModel:"+(state?.targetPath||DEFAULT_TARGET))}
+function lastGoodModelKey(){return scopedKey("RoFlowUIStudioLastGoodModel:"+(state?.targetPath||"unconfigured"))}
 let PROJECT_UI_STATES=[];
 const UI_STATE_TITLES={};
 const UI_STATE_ROOTS={};
@@ -60,7 +59,7 @@ async function loadProjectUiConfig(){
    id:String(item.id),
    label:String(item.label||item.id),
    root:String(item.root),
-   modelPath:String(item.modelPath||DEFAULT_TARGET),
+   modelPath:String(item.modelPath||""),
    iconAssetId:String(item.iconAssetId||"")
   }));
   for(const item of PROJECT_UI_STATES){
@@ -68,10 +67,14 @@ async function loadProjectUiConfig(){
    UI_STATE_ROOTS[item.id]=item.root;
    UI_STATE_MODELS[item.id]=item.modelPath;
   }
-  const models=new Set(PROJECT_UI_STATES.map(item=>item.modelPath));
+  const models=new Set(PROJECT_UI_STATES.map(item=>item.modelPath).filter(Boolean));
+  PRIMARY_MODEL_PATH=PROJECT_UI_STATES[0]?.modelPath||"";
   if(PROJECT_UI_STATES.length&&!models.has(state.targetPath)){
-   state.targetPath=PROJECT_UI_STATES[0].modelPath||DEFAULT_TARGET;
+   state.targetPath=PRIMARY_MODEL_PATH;
    state.modelKey=state.targetPath;
+  }else if(!PROJECT_UI_STATES.length){
+   state.targetPath="";
+   state.modelKey="";
   }
  }catch(error){
   console.error("[RoFlow UI Studio] project UI config failed",error);
@@ -110,8 +113,8 @@ function hasProjectConnection(){return ROFLOW_NATIVE?state.nativeProjectReady:!!
 
 const state={
  root:null,selectedId:null,viewport:{w:1366,h:768},zoom:.72,snap:8,labels:false,grid:true,showHidden:true,geometry:true,inset:36,mode:"design",previewScene:"gameplay",
- projectHandle:null,nativeProjectReady:false,targetPath:localStorage.getItem(scopedKey("roflowTargetPath"))||DEFAULT_TARGET,
- activeUiState:null,modelKey:DEFAULT_TARGET,history:[],future:[],dirty:false,drag:null,panelResize:null,explorerW:252,inspectorW:300,collapsed:new Set(),clipboard:null,treeQuery:"",pan:null,selectedIds:new Set(),selectionAnchorId:null,treeDragIds:[],assistantSyncing:false,bridgeBase:"",modelLoadFailed:false,autoSaveTimer:null,autoSaving:false,autoSaveQueued:false,lastAutoSaveError:"",suspended:false
+ projectHandle:null,nativeProjectReady:false,targetPath:localStorage.getItem(scopedKey("roflowTargetPath"))||"",
+ activeUiState:null,modelKey:"",history:[],future:[],dirty:false,drag:null,panelResize:null,explorerW:252,inspectorW:300,collapsed:new Set(),clipboard:null,treeQuery:"",pan:null,selectedIds:new Set(),selectionAnchorId:null,treeDragIds:[],assistantSyncing:false,bridgeBase:"",modelLoadFailed:false,autoSaveTimer:null,autoSaving:false,autoSaveQueued:false,lastAutoSaveError:"",suspended:false
 };
 
 let idCounter=1;
@@ -415,7 +418,7 @@ async function switchUiModel(path,key){
  return true;
 }
 function stateFocusName(scene){return UI_STATE_ROOTS[scene]||null}
-function stateModelPath(scene){return UI_STATE_MODELS[scene]||DEFAULT_TARGET}
+function stateModelPath(scene){return UI_STATE_MODELS[scene]||""}
 const FRAGMENT_ROOT_BASES=[
  "CloseButton","EquipButton","UnequipButton","ConfirmButton","CancelButton","BackButton",
  "PrimaryAction","IconButton","TabButton","CurrencyPill","StatusBadge","ProgressBar","Tooltip","ModalHeader"
@@ -482,7 +485,8 @@ async function activateUiState(scene){
   toast("Empty workspace");
   return;
  }
- if(!(await switchUiModel(config.modelPath||DEFAULT_TARGET,config.modelPath||scene)))return;
+ if(!config.modelPath)return toast("This UI state has no modelPath in roflow.project.json",true);
+ if(!(await switchUiModel(config.modelPath,config.modelPath||scene)))return;
  state.activeUiState=scene;
  state.mode="preview";
  state.previewScene=scene;
@@ -2250,7 +2254,7 @@ async function assistantSync(){
   if(ROFLOW_NATIVE){
    if(status?.ok===false)throw new Error(status?.error||"RoFlow project недоступен");
    if(status?.dirty)toast("AI SYNC: backup → stash → pull → merge → restore");
-   const data=await roflowInvoke("safe_ai_sync",{editorModel:state.targetPath===DEFAULT_TARGET&&state.root?stripNode(state.root):null});
+   const data=await roflowInvoke("safe_ai_sync",{editorModel:state.targetPath===PRIMARY_MODEL_PATH&&state.root?stripNode(state.root):null});
    await reloadModelFromServer(data.changed?"AI UI обновлён из GitHub":"AI SYNC: уже актуально");
    await assistantStatus();
    if(data.modelMerged)toast(data.changed?"AI SYNC готов · UI изменения объединены":"AI SYNC готов · локальный UI сохранён");
@@ -2263,7 +2267,7 @@ async function assistantSync(){
   if(status.dirty)toast("AI SYNC: сохраняю локальные изменения → pull → возвращаю их обратно");
   const {r,data}=await apiJson(base+"/api/git/pull",{
    method:"POST",headers:{"Content-Type":"application/json"},
-   body:JSON.stringify({editor_model:state.targetPath===DEFAULT_TARGET&&state.root?stripNode(state.root):null}),
+   body:JSON.stringify({editor_model:state.targetPath===PRIMARY_MODEL_PATH&&state.root?stripNode(state.root):null}),
    timeout:50000
   });
   if(!r.ok||!data.ok){
@@ -2296,15 +2300,7 @@ async function assistantSync(){
 async function connectProject(){
  if(ROFLOW_NATIVE){
   try{
-   const dlg=roflowDialog();if(!dlg?.open)throw new Error("Native folder picker unavailable");
-   const selected=await dlg.open({directory:true,multiple:false,title:"Choose Roblox/Rojo project"});
-   if(!selected)return;
-   await roflowInvoke("set_project_root",{path:selected});
-   state.nativeProjectReady=true;
-   try{window.parent?.postMessage({type:"roflow-project-changed",path:selected},"*")}catch{}
-   await pullProject();updateStatus();await assistantStatus();
-   toast("Проект подключён: "+String(selected).split(/[\\/]/).filter(Boolean).pop());
-   if(state.dirty||state.modelLoadFailed)scheduleAutoSave(80);
+   window.parent?.postMessage({type:"roflow-request-project-picker"},"*");
   }catch(e){toast(String(e),true)}
   return;
  }
