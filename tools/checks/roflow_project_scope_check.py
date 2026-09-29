@@ -33,13 +33,17 @@ need(studio,'state.targetPath===PRIMARY_MODEL_PATH',"project primary model merge
 need(studio,'roflow-request-project-picker',"UI Studio delegates project switching")
 need(web,'roflow-request-project-picker',"shell owns project switching")
 
+runtime_sources=rust+"\n"+web+"\n"+studio
 for forbidden,label in [
     ('localStorage.setItem("roflowPlannerShowCompleted"', "global Planner completion preference"),
-    ('const PLANNER_DEFAULTS_PATH: &str = "tools/roflow/planner-defaults.json";', "embedded Bloom planner authority"),
-    ('if !root.join(MODEL_PATH).is_file() {\n        return Err(format!("{MODEL_PATH} was not found in this project"));', "fixed BloomUI project requirement"),
+    ('const PLANNER_DEFAULTS_PATH: &str = "tools/roflow/planner-defaults.json";', "embedded game planner authority"),
+    ('BloomUI.model.json', "Bloom-specific UI model path"),
+    ('BloomLoadingTemplate.model.json', "Bloom-specific loading model path"),
+    ('BloomEditorEngineV2', "Bloom-specific editor engine name"),
+    ('Choose Bloom_RNG project', "Bloom-specific project picker"),
 ]:
-    if forbidden in web+rust:
-        raise AssertionError(f"{label} must not be global/embedded")
+    if forbidden in runtime_sources:
+        raise AssertionError(f"{label} must not exist in standalone runtime sources")
 
 print("RoFlow project-scope contract: PASS")
 print("Planner, UI state, build output and runtime/release gates are project-owned.")
