@@ -17,7 +17,7 @@ const DEFAULT_TARGET="src/StarterGui/BloomUI.model.json";
 const LOADING_TARGET="src/ReplicatedFirst/BloomLoadingTemplate.model.json";
 const PROJECT_SCOPE=new URLSearchParams(location.search).get("project")||"unscoped";
 const scopedKey=name=>name+":"+PROJECT_SCOPE;
-function lastGoodModelKey(){return scopedKey("BloomUIStudioLastGoodModel:"+(state?.targetPath||DEFAULT_TARGET))}
+function lastGoodModelKey(){return scopedKey("RoFlowUIStudioLastGoodModel:"+(state?.targetPath||DEFAULT_TARGET))}
 let PROJECT_UI_STATES=[];
 const UI_STATE_TITLES={};
 const UI_STATE_ROOTS={};
@@ -110,8 +110,8 @@ function hasProjectConnection(){return ROFLOW_NATIVE?state.nativeProjectReady:!!
 
 const state={
  root:null,selectedId:null,viewport:{w:1366,h:768},zoom:.72,snap:8,labels:false,grid:true,showHidden:true,geometry:true,inset:36,mode:"design",previewScene:"gameplay",
- projectHandle:null,nativeProjectReady:false,targetPath:localStorage.getItem(scopedKey("bloomTargetPath"))||DEFAULT_TARGET,
- activeUiState:null,modelKey:"bloom",history:[],future:[],dirty:false,drag:null,panelResize:null,explorerW:252,inspectorW:300,collapsed:new Set(),clipboard:null,treeQuery:"",pan:null,selectedIds:new Set(),selectionAnchorId:null,treeDragIds:[],assistantSyncing:false,bridgeBase:"",modelLoadFailed:false,autoSaveTimer:null,autoSaving:false,autoSaveQueued:false,lastAutoSaveError:"",suspended:false
+ projectHandle:null,nativeProjectReady:false,targetPath:localStorage.getItem(scopedKey("roflowTargetPath"))||DEFAULT_TARGET,
+ activeUiState:null,modelKey:DEFAULT_TARGET,history:[],future:[],dirty:false,drag:null,panelResize:null,explorerW:252,inspectorW:300,collapsed:new Set(),clipboard:null,treeQuery:"",pan:null,selectedIds:new Set(),selectionAnchorId:null,treeDragIds:[],assistantSyncing:false,bridgeBase:"",modelLoadFailed:false,autoSaveTimer:null,autoSaving:false,autoSaveQueued:false,lastAutoSaveError:"",suspended:false
 };
 
 let idCounter=1;
@@ -129,7 +129,7 @@ const ud=(s=0,o=0)=>({UDim:[s,o]});
 const u2=(xs=0,xo=0,ys=0,yo=0)=>({UDim2:[[xs,xo],[ys,yo]]});
 const v2=(x=0,y=0)=>({Vector2:[x,y]});
 
-const PREFS_KEY=scopedKey("BloomUIStudioPrefsV1");
+const PREFS_KEY=scopedKey("RoFlowUIStudioPrefsV1");
 function applyPanelWidths(){
  document.documentElement.style.setProperty("--explorer-w",Math.round(state.explorerW)+"px");
  document.documentElement.style.setProperty("--inspector-w",Math.round(state.inspectorW)+"px");
@@ -223,7 +223,7 @@ function setRoot(raw,label="Модель загружена"){
    syncToolbarFromState();
   }
   syncInsetFromRoot();renderAll();toast(label);
- }catch(e){console.error("[Bloom UI Studio] model/render error",e);toast("Ошибка модели: "+e.message,true)}
+ }catch(e){console.error("[RoFlow UI Studio] model/render error",e);toast("Ошибка модели: "+e.message,true)}
 }
 function syncInsetFromRoot(){
  if(state.root?.ClassName==="ScreenGui"){
@@ -410,7 +410,7 @@ async function switchUiModel(path,key){
   updateStatus();
   return false;
  }
- localStorage.setItem(scopedKey("bloomTargetPath"),path);
+ localStorage.setItem(scopedKey("roflowTargetPath"),path);
  updateStatus();
  return true;
 }
@@ -2146,7 +2146,7 @@ async function apiJson(url,options={}){
   const raw=await r.text();
   if(!type.includes("application/json")){
    const preview=raw.trim().slice(0,60).replace(/\s+/g," ");
-   throw new Error("Bloom UI Server устарел или запущен не тот сервер"+(preview?" · ответ: "+preview:""));
+   throw new Error("UI Studio Server устарел или запущен не тот сервер"+(preview?" · ответ: "+preview:""));
   }
   let data;
   try{data=JSON.parse(raw)}catch{throw new Error("Сервер вернул повреждённый JSON")}
@@ -2173,7 +2173,7 @@ async function discoverAssistantBridge(){
   }catch{}
  }
  state.bridgeBase="";
- return {ok:false,error:"Assistant Bridge v6 не найден. Один раз перезапусти Bloom UI Studio Server через Start Bloom UI Editor.bat"};
+ return {ok:false,error:"Assistant Bridge v6 не найден. Перезапусти RoFlow UI Studio developer server."};
 }
 async function assistantStatus(){
  const badge=$("#aiBridgeStatus");
@@ -2221,7 +2221,7 @@ async function reloadModelFromServer(label="AI изменения загруже
  if(ROFLOW_NATIVE){
   const raw=await roflowInvoke("read_ui_model",{path:state.targetPath});
   let model;
-  try{model=JSON.parse(String(raw).replace(/^\uFEFF/,""))}catch{throw new Error("BloomUI.model.json содержит неверный JSON")}
+  try{model=JSON.parse(String(raw).replace(/^\uFEFF/,""))}catch{throw new Error("UI model содержит неверный JSON")}
   state.nativeProjectReady=true;
   setRoot(model,label);
   return;
@@ -2297,7 +2297,7 @@ async function connectProject(){
  if(ROFLOW_NATIVE){
   try{
    const dlg=roflowDialog();if(!dlg?.open)throw new Error("Native folder picker unavailable");
-   const selected=await dlg.open({directory:true,multiple:false,title:"Choose Bloom_RNG project"});
+   const selected=await dlg.open({directory:true,multiple:false,title:"Choose Roblox/Rojo project"});
    if(!selected)return;
    await roflowInvoke("set_project_root",{path:selected});
    state.nativeProjectReady=true;
@@ -2315,7 +2315,7 @@ async function connectProject(){
  }catch(e){if(e.name!=="AbortError")toast(e.message,true)}
 }
 async function getFile(path,create=false){
- if(!state.projectHandle)throw new Error("Сначала подключи C:\\Bloom_RNG");
+ if(!state.projectHandle)throw new Error("Сначала подключи папку Roblox/Rojo проекта");
  const parts=path.replace(/\\/g,"/").split("/").filter(Boolean),file=parts.pop();let dir=state.projectHandle;
  for(const part of parts)dir=await dir.getDirectoryHandle(part,{create});
  return dir.getFileHandle(file,{create});
@@ -2408,7 +2408,7 @@ async function pushProject(){
  if(ok)assistantStatus();
 }
 function download(){
- const blob=new Blob([serialize(true)+"\n"],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(state.root?.Name||"BloomUI")+".model.json";a.click();URL.revokeObjectURL(a.href)
+ const blob=new Blob([serialize(true)+"\n"],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(state.root?.Name||"RobloxUI")+".model.json";a.click();URL.revokeObjectURL(a.href)
 }
 async function copyModel(){await navigator.clipboard.writeText(serialize(true));toast("Полная Roblox-модель скопирована для ChatGPT")}
 function importFile(file){const r=new FileReader();r.onload=()=>{try{setRoot(JSON.parse(r.result),"JSON импортирован")}catch(e){toast(e.message,true)}};r.readAsText(file)}
@@ -2420,14 +2420,14 @@ async function saveHandle(handle){
 async function loadHandle(){
  try{const db=await idb();return await new Promise((res,rej)=>{const q=db.transaction("kv").objectStore("kv").get("projectHandle");q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}catch{return null}
 }
-function idb(){return new Promise((res,rej)=>{const q=indexedDB.open("BloomUIStudio",1);q.onupgradeneeded=()=>q.result.createObjectStore("kv");q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
+function idb(){return new Promise((res,rej)=>{const q=indexedDB.open("RoFlowUIStudio",1);q.onupgradeneeded=()=>q.result.createObjectStore("kv");q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
 
 async function loadInitial(){
  if(ROFLOW_NATIVE){
   try{
    const raw=await roflowInvoke("read_ui_model",{path:state.targetPath});
    state.nativeProjectReady=true;
-   setRoot(JSON.parse(String(raw).replace(/^\uFEFF/,"")),"Текущий BloomUI открыт в RoFlow");
+   setRoot(JSON.parse(String(raw).replace(/^\uFEFF/,"")),"Текущая UI-модель открыта в RoFlow");
    return;
   }catch(e){
    state.nativeProjectReady=false;
@@ -2441,7 +2441,7 @@ async function loadInitial(){
     if(title)title.textContent="UI model failed to load";
     if(copy)copy.textContent="RoFlow could not read "+state.targetPath+". Check the project connection or press Reload.";
    }
-   console.error("[Bloom UI Studio] native model load failed",e);
+   console.error("[RoFlow UI Studio] native model load failed",e);
    toast("Не удалось загрузить UI: "+String(e),true);
    return;
   }
@@ -2452,10 +2452,10 @@ async function loadInitial(){
   if(r.ok){
    const raw=await r.text();
    try{
-    setRoot(JSON.parse(raw.replace(/^\uFEFF/,"")),"Текущий BloomUI открыт");
+    setRoot(JSON.parse(raw.replace(/^\uFEFF/,"")),"Текущая UI-модель открыта");
     return;
    }catch(parseError){
-    console.error("[Bloom UI Studio] BloomUI.model.json parse error",parseError);
+    console.error("[RoFlow UI Studio] UI model parse error",parseError);
     state.modelLoadFailed=true;
     const backup=localStorage.getItem(lastGoodModelKey());
     let recovered=false;
@@ -2470,7 +2470,7 @@ async function loadInitial(){
     }
     const push=$("#pushBtn");
     if(recovered){
-     if(push){push.disabled=false;push.title="Восстановить повреждённый BloomUI.model.json из последней рабочей модели"}
+     if(push){push.disabled=false;push.title="Восстановить повреждённую UI-модель из последней рабочей копии"}
      toast("RECOVERY MODE: рабочая модель найдена · JSON будет восстановлен автосохранением",true);
      scheduleAutoSave(80);
     }else{
@@ -2507,7 +2507,7 @@ $("#geometryToggle").onchange=e=>{state.geometry=e.target.checked;renderViewport
 $("#hiddenToggle").onchange=e=>{state.showHidden=e.target.checked;renderViewport();renderTree();updateOverlay();toast(state.showHidden?"Скрытые Roblox-объекты показаны только в редакторе":"Скрытые Roblox-объекты спрятаны");savePrefs()};
 $("#modeSelect").onchange=()=>{};
 $("#sceneSelect").onchange=()=>{};
- $("#uiStateBar")?.addEventListener("click",e=>{const b=e.target.closest("[data-ui-state]");if(!b)return;activateUiState(b.dataset.uiState).catch(error=>{console.error("[Bloom UI Studio] state activation failed",error);toast("UI State не загрузился: "+String(error),true)})});
+ $("#uiStateBar")?.addEventListener("click",e=>{const b=e.target.closest("[data-ui-state]");if(!b)return;activateUiState(b.dataset.uiState).catch(error=>{console.error("[RoFlow UI Studio] state activation failed",error);toast("UI State не загрузился: "+String(error),true)})});
 $("#insetInput").onchange=e=>{state.inset=Math.max(0,+e.target.value);renderAll();savePrefs()};
 $("#bgBtn").onclick=()=>$("#bgInput").click();
 $("#bgClearBtn").onclick=()=>{els.device.style.backgroundImage="";els.device.style.backgroundColor="#182332";toast("Фон убран")};
