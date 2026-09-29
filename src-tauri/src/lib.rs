@@ -429,6 +429,79 @@ fn project_manifest(root: &Path) -> ProjectManifest {
     manifest
 }
 
+fn allowed_ui_model_paths(root: &Path) -> BTreeSet<String> {
+    let manifest = project_manifest(root);
+    let mut paths = BTreeSet::new();
+
+    for state in manifest.ui_states {
+        if let Some(path) = safe_manifest_relative_path(&state.model_path) {
+            paths.insert(path);
+        }
+    }
+
+    if paths.is_empty() {
+        if root.join(MODEL_PATH).is_file() {
+            paths.insert(MODEL_PATH.to_string());
+        }
+        if root.join(LOADING_MODEL_PATH).is_file() {
+            paths.insert(LOADING_MODEL_PATH.to_string());
+        }
+    }
+    paths
+}
+
+fn primary_ui_model_path(root: &Path) -> Result<String, String> {
+    let manifest = project_manifest(root);
+    for state in manifest.ui_states {
+        if let Some(path) = safe_manifest_relative_path(&state.model_path) {
+            return Ok(path);
+        }
+    }
+
+    if root.join(MODEL_PATH).is_file() {
+        return Ok(MODEL_PATH.to_string());
+    }
+    if root.join(LOADING_MODEL_PATH).is_file() {
+        return Ok(LOADING_MODEL_PATH.to_string());
+    }
+
+    Err("No authored UI model is configured for this project".into())
+}
+
+fn resolve_ui_model_path(root: &Path, requested: Option<String>) -> Result<String, String> {
+    let allowed = allowed_ui_model_paths(root);
+    let raw = match requested {
+        Some(value) if !value.trim().is_empty() => value,
+        _ => primary_ui_model_path(root)?,
+    };
+    let safe = safe_manifest_relative_path(&raw)
+        .ok_or_else(|| format!("Unsafe UI model path: {raw}"))?;
+
+    if !allowed.contains(&safe) {
+        return Err(format!(
+            "UI model path is not declared by this project: {safe}"
+        ));
+    }
+    Ok(safe)
+}
+
+fn json_tree_has_name(value: &Value, wanted: &str) -> bool {
+    if value
+        .get("Name")
+        .and_then(Value::as_str)
+        .map(|name| name == wanted)
+        .unwrap_or(false)
+    {
+        return true;
+    }
+
+    value
+        .get("Children")
+        .and_then(Value::as_array)
+        .map(|children| children.iter().any(|child| json_tree_has_name(child, wanted)))
+        .unwrap_or(false)
+}
+
 fn git_env(root: &Path, args: &[&str], envs: &[(&str, &str)]) -> Result<String, String> {
     let mut command = Command::new("git");
     command.args(args).current_dir(root);
@@ -1110,9 +1183,6 @@ fn validate_project_root(path: &str) -> Result<PathBuf, String> {
     if !root.join(".git").exists() {
         return Err("Selected folder is not a Git working tree".into());
     }
-    if !root.join(MODEL_PATH).is_file() {
-        return Err(format!("{MODEL_PATH} was not found in this project"));
-    }
     if !root.join("default.project.json").is_file() {
         return Err("default.project.json was not found in this project".into());
     }
@@ -1158,6 +1228,9 @@ fn status_for(root: &Path) -> Result<ProjectStatus, String> {
         .collect();
 
     let manifest = project_manifest(root);
+    let model_exists = allowed_ui_model_paths(root)
+        .iter()
+        .any(|path| root.join(path).is_file());
     Ok(ProjectStatus {
         root: root.to_string_lossy().to_string(),
         project_id: manifest.project_id,
@@ -1167,7 +1240,7 @@ fn status_for(root: &Path) -> Result<ProjectStatus, String> {
         subject,
         dirty: !changes.is_empty(),
         changes,
-        model_exists: root.join(MODEL_PATH).is_file(),
+        model_exists,
         planner_defaults_path: manifest.planner_defaults_path,
         build_file: manifest.build_file,
         runtime_probe_enabled: manifest.runtime_probe_enabled,
@@ -1186,8 +1259,8 @@ fn write_json(path: &Path, value: &Value) -> Result<(), String> {
     fs::write(path, text).map_err(|e| e.to_string())
 }
 
-fn backup_model(root: &Path) -> Result<String, String> {
-    let model = root.join(MODEL_PATH);
+fn backup_model(root: &Path, model_relative: &str) -> Result<String, String> {
+    let model = root.join(model_relative);
     if !model.is_file() {
         return Ok(String::new());
     }
@@ -1197,7 +1270,8 @@ fn backup_model(root: &Path) -> Result<String, String> {
         .duration_since(UNIX_EPOCH)
         .map_err(|e| e.to_string())?
         .as_secs();
-    let name = format!("BloomUI.model.before-roflow-sync.{stamp}.json");
+    let digest = format!("{:x}", Sha256::digest(model_relative.as_bytes()));
+    let name = format!("ui-model-{}.before-roflow-sync.{stamp}.json", &digest[..10]);
     fs::copy(&model, recovery.join(&name)).map_err(|e| e.to_string())?;
     Ok(format!(".recovery/{name}"))
 }
@@ -1426,27 +1500,22 @@ fn project_status(state: State<AppState>) -> Result<ProjectStatus, String> {
     status_for(&current_root(&state)?)
 }
 
-fn ui_model_path(requested: Option<String>) -> Result<&'static str, String> {
-    match requested.as_deref().unwrap_or(MODEL_PATH) {
-        MODEL_PATH => Ok(MODEL_PATH),
-        LOADING_MODEL_PATH => Ok(LOADING_MODEL_PATH),
-        other => Err(format!("Unsupported UI model path: {other}")),
-    }
-}
-
 #[tauri::command]
 fn read_ui_model(path: Option<String>, state: State<AppState>) -> Result<String, String> {
     let root = current_root(&state)?;
-    let model_path = ui_model_path(path)?;
-    fs::read_to_string(root.join(model_path)).map_err(|e| format!("Failed to read {model_path}: {e}"))
+    let model_path = resolve_ui_model_path(&root, path)?;
+    fs::read_to_string(root.join(&model_path))
+        .map_err(|e| format!("Failed to read {model_path}: {e}"))
 }
 
 #[tauri::command]
 fn write_ui_model(contents: String, path: Option<String>, state: State<AppState>) -> Result<(), String> {
     let root = current_root(&state)?;
-    let model_path = ui_model_path(path)?;
-    serde_json::from_str::<Value>(&contents).map_err(|e| format!("Refusing to write invalid JSON: {e}"))?;
-    fs::write(root.join(model_path), contents).map_err(|e| format!("Failed to write {model_path}: {e}"))
+    let model_path = resolve_ui_model_path(&root, path)?;
+    serde_json::from_str::<Value>(&contents)
+        .map_err(|e| format!("Refusing to write invalid JSON: {e}"))?;
+    fs::write(root.join(&model_path), contents)
+        .map_err(|e| format!("Failed to write {model_path}: {e}"))
 }
 
 #[tauri::command]
@@ -1486,11 +1555,19 @@ fn safe_ai_sync(editor_model: Option<Value>, state: State<AppState>) -> Result<S
 
     let before = status_for(&root)?;
     let old_head = before.head.clone();
-    let model_path = root.join(MODEL_PATH);
-    let base_text = git(&root, &["show", &format!("HEAD:{MODEL_PATH}")])?;
-    let base_model = parse_json_text(&base_text).ok_or("HEAD BloomUI.model.json is invalid")?;
+    let primary_model = primary_ui_model_path(&root)?;
+    let model_path = root.join(&primary_model);
+    let base_spec = format!("HEAD:{primary_model}");
+    let base_text = git(&root, &["show", &base_spec])?;
+    let base_model = parse_json_text(&base_text)
+        .ok_or_else(|| format!("HEAD {primary_model} is invalid"))?;
 
-    let model_dirty = !git(&root, &["status", "--porcelain", "--", MODEL_PATH])?.trim().is_empty();
+    let model_dirty = !git(
+        &root,
+        &["status", "--porcelain", "--", primary_model.as_str()],
+    )?
+    .trim()
+    .is_empty();
     let disk_text = fs::read_to_string(&model_path).ok();
     let disk_model = disk_text.as_deref().and_then(parse_json_text);
     let local_model = if model_dirty {
@@ -1501,14 +1578,23 @@ fn safe_ai_sync(editor_model: Option<Value>, state: State<AppState>) -> Result<S
 
     let mut recovery_backup = String::new();
     if model_dirty {
-        recovery_backup = backup_model(&root)?;
+        recovery_backup = backup_model(&root, &primary_model)?;
         if local_model.is_none() {
             return Err(format!(
-                "BloomUI.model.json is invalid. Raw file preserved at {}",
+                "{primary_model} is invalid. Raw file preserved at {}",
                 recovery_backup
             ));
         }
-        git(&root, &["restore", "--staged", "--worktree", "--", MODEL_PATH])?;
+        git(
+            &root,
+            &[
+                "restore",
+                "--staged",
+                "--worktree",
+                "--",
+                primary_model.as_str(),
+            ],
+        )?;
     }
 
     let mut stashed = false;
@@ -1590,7 +1676,8 @@ fn safe_ai_sync(editor_model: Option<Value>, state: State<AppState>) -> Result<S
     }
 
     let remote_text = fs::read_to_string(&model_path).map_err(|e| e.to_string())?;
-    let remote_model = parse_json_text(&remote_text).ok_or("Pulled BloomUI.model.json is invalid")?;
+    let remote_model = parse_json_text(&remote_text)
+        .ok_or_else(|| format!("Pulled {primary_model} is invalid"))?;
     let mut model_merged = false;
 
     if let Some(local) = local_model {
@@ -2153,22 +2240,98 @@ fn health_check(state: State<AppState>) -> Result<HealthReport, String> {
         detail: if git_ok { "Repository is accessible".into() } else { "Git working tree check failed".into() },
     });
 
-    let model_path = root.join(MODEL_PATH);
-    let model_exists = model_path.is_file();
+    let manifest = project_manifest(&root);
+    let model_paths = allowed_ui_model_paths(&root);
+    let model_exists = !model_paths.is_empty()
+        && model_paths.iter().all(|path| root.join(path).is_file());
     checks.push(HealthItem {
-        name: "BloomUI model".into(),
+        name: "Authored UI models".into(),
         ok: model_exists,
-        detail: if model_exists { MODEL_PATH.into() } else { "BloomUI.model.json is missing".into() },
+        detail: if model_paths.is_empty() {
+            "No UI model is configured. Add uiStates to roflow.project.json.".into()
+        } else if model_exists {
+            format!("{} configured model(s) are present", model_paths.len())
+        } else {
+            let missing = model_paths
+                .iter()
+                .filter(|path| !root.join(path).is_file())
+                .cloned()
+                .collect::<Vec<_>>();
+            format!("Missing: {}", missing.join(", "))
+        },
     });
 
-    let model_valid = fs::read_to_string(&model_path)
-        .ok()
-        .and_then(|text| parse_json_text(&text))
-        .is_some();
+    let mut invalid_models = Vec::new();
+    let mut parsed_models = HashMap::<String, Value>::new();
+    for path in &model_paths {
+        match fs::read_to_string(root.join(path))
+            .ok()
+            .and_then(|text| parse_json_text(&text))
+        {
+            Some(value) => {
+                parsed_models.insert(path.clone(), value);
+            }
+            None => invalid_models.push(path.clone()),
+        }
+    }
     checks.push(HealthItem {
-        name: "BloomUI JSON".into(),
-        ok: model_valid,
-        detail: if model_valid { "Model JSON is valid".into() } else { "Model JSON is invalid or unreadable".into() },
+        name: "UI model JSON".into(),
+        ok: !model_paths.is_empty() && invalid_models.is_empty(),
+        detail: if invalid_models.is_empty() && !model_paths.is_empty() {
+            "Configured UI model JSON is valid".into()
+        } else if invalid_models.is_empty() {
+            "No configured UI model to validate".into()
+        } else {
+            format!("Invalid or unreadable: {}", invalid_models.join(", "))
+        },
+    });
+
+    let missing_roots = manifest
+        .ui_states
+        .iter()
+        .filter_map(|state| {
+            parsed_models
+                .get(&state.model_path)
+                .filter(|model| json_tree_has_name(model, &state.root))
+                .map(|_| None)
+                .unwrap_or_else(|| Some(format!("{} → {}", state.id, state.root)))
+        })
+        .flatten()
+        .collect::<Vec<_>>();
+    checks.push(HealthItem {
+        name: "UI state roots".into(),
+        ok: manifest.ui_states.is_empty() || missing_roots.is_empty(),
+        detail: if manifest.ui_states.is_empty() {
+            "No project UI states declared".into()
+        } else if missing_roots.is_empty() {
+            format!("{} UI state root(s) resolved", manifest.ui_states.len())
+        } else {
+            format!("Missing authored roots: {}", missing_roots.join(", "))
+        },
+    });
+
+    let planner_ok = if manifest.planner_defaults_path.is_empty() {
+        true
+    } else {
+        fs::read_to_string(root.join(&manifest.planner_defaults_path))
+            .ok()
+            .and_then(|text| serde_json::from_str::<PlannerDefaults>(&text).ok())
+            .map(|defaults| defaults.schema_version == 1)
+            .unwrap_or(false)
+    };
+    checks.push(HealthItem {
+        name: "Planner defaults".into(),
+        ok: planner_ok,
+        detail: if manifest.planner_defaults_path.is_empty() {
+            "Project uses an empty planner by default".into()
+        } else if planner_ok {
+            manifest.planner_defaults_path.clone()
+        } else {
+            format!(
+                "{} is missing or invalid",
+                manifest.planner_defaults_path
+            )
+        },
     });
 
     let project_path = root.join("default.project.json");
