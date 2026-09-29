@@ -3,7 +3,7 @@ const dialog=window.__TAURI__?.dialog;
 const $=selector=>document.querySelector(selector);
 const state={
  status:null,
- root:localStorage.getItem("roflowProjectRoot")||"",
+ root:localStorage.getItem("roflowStandaloneProjectRootV1")||"",
  projectId:"",
  displayName:"",
  buildFileName:"",
@@ -44,7 +44,7 @@ function requireProject(){
 }
 
 function projectUiStorageKey(projectId){
- return "roflowProjectUi:"+String(projectId||"").trim();
+ return "roflowStandaloneProjectUiV1:"+String(projectId||"").trim();
 }
 function saveProjectUiState(){
  if(!state.projectId)return;
@@ -438,7 +438,7 @@ async function connectRoot(path){
 
  const status=await invoke("set_project_root",{path});
  state.root=status.root||path;
- localStorage.setItem("roflowProjectRoot",state.root);
+ localStorage.setItem("roflowStandaloneProjectRootV1",state.root);
  applyStatus(status);
  clearProjectDom();
  loadProjectUiState(state.projectId);
@@ -739,7 +739,7 @@ document.addEventListener("visibilitychange",()=>{
   try{
    await connectRoot(state.root);
   }catch(error){
-   localStorage.removeItem("roflowProjectRoot");
+   localStorage.removeItem("roflowStandaloneProjectRootV1");
    state.root="";
    log("Saved project path is no longer valid: "+error);
   }
