@@ -17,12 +17,67 @@ const DEFAULT_TARGET="src/StarterGui/BloomUI.model.json";
 const LOADING_TARGET="src/ReplicatedFirst/BloomLoadingTemplate.model.json";
 const PROJECT_SCOPE=new URLSearchParams(location.search).get("project")||"unscoped";
 const scopedKey=name=>name+":"+PROJECT_SCOPE;
-function lastGoodModelKey(){return scopedKey(state?.targetPath===LOADING_TARGET?"BloomUIStudioLastGoodModelLoading":"BloomUIStudioLastGoodModel")}
-const UI_STATE_TITLES={
- gameplay:"HUD",inventory_v2:"Inventory",index:"Index",traits:"Traits",garden:"Garden",hive:"Hive",workshop:"Workshop",quests:"Quests",
- settings:"Settings",season:"Season",replay:"Tutorial Replay",cards:"Cards",
- reward:"Reward",toast:"Toast",tutorial:"Tutorial Guidance",boosts:"Active Boosts",world_ui:"World UI",loading:"Loading Screen"
-};
+function lastGoodModelKey(){return scopedKey("BloomUIStudioLastGoodModel:"+(state?.targetPath||DEFAULT_TARGET))}
+let PROJECT_UI_STATES=[];
+const UI_STATE_TITLES={};
+const UI_STATE_ROOTS={};
+const UI_STATE_MODELS={};
+
+function clearUiStateConfig(){
+ PROJECT_UI_STATES=[];
+ for(const map of [UI_STATE_TITLES,UI_STATE_ROOTS,UI_STATE_MODELS])for(const key of Object.keys(map))delete map[key];
+}
+function renderUiStateRail(){
+ const bar=$("#uiStateBar");if(!bar)return;
+ bar.innerHTML="";
+ const head=document.createElement("div");head.className="rail-head";head.innerHTML="<span>UI</span><small>STATES</small>";bar.appendChild(head);
+ for(const config of PROJECT_UI_STATES){
+  const button=document.createElement("button");
+  button.className="ui-state-btn";
+  button.dataset.uiState=config.id;
+  button.title=config.label;
+  const icon=document.createElement("b");
+  if(config.iconAssetId){
+   const img=document.createElement("img");img.dataset.assetId=config.iconAssetId;img.alt="";icon.appendChild(img);
+  }else{
+   icon.textContent=(config.label||config.id||"?").trim().slice(0,1).toUpperCase();
+  }
+  const label=document.createElement("span");label.textContent=config.label||config.id;
+  button.append(icon,label);bar.appendChild(button);
+ }
+ const foot=document.createElement("div");foot.className="rail-foot";
+ foot.textContent=PROJECT_UI_STATES.length?"Click active state again for empty desk":"No UI states configured for this project";
+ bar.appendChild(foot);
+ hydrateStudioIcons();
+}
+async function loadProjectUiConfig(){
+ clearUiStateConfig();
+ if(!ROFLOW_NATIVE){renderUiStateRail();return}
+ try{
+  const status=await roflowInvoke("project_status");
+  const list=Array.isArray(status?.uiStates)?status.uiStates:[];
+  PROJECT_UI_STATES=list.filter(item=>item&&item.id&&item.root).map(item=>({
+   id:String(item.id),
+   label:String(item.label||item.id),
+   root:String(item.root),
+   modelPath:String(item.modelPath||DEFAULT_TARGET),
+   iconAssetId:String(item.iconAssetId||"")
+  }));
+  for(const item of PROJECT_UI_STATES){
+   UI_STATE_TITLES[item.id]=item.label;
+   UI_STATE_ROOTS[item.id]=item.root;
+   UI_STATE_MODELS[item.id]=item.modelPath;
+  }
+  const models=new Set(PROJECT_UI_STATES.map(item=>item.modelPath));
+  if(PROJECT_UI_STATES.length&&!models.has(state.targetPath)){
+   state.targetPath=PROJECT_UI_STATES[0].modelPath||DEFAULT_TARGET;
+   state.modelKey=state.targetPath;
+  }
+ }catch(error){
+  console.error("[RoFlow UI Studio] project UI config failed",error);
+ }
+ renderUiStateRail();
+}
 
 function roflowTauri(){
  try{
@@ -95,8 +150,6 @@ function loadPrefs(){
   state.activeUiState=null;
   state.mode="preview";
   state.previewScene="empty";
-  state.targetPath=DEFAULT_TARGET;
-  state.modelKey="bloom";
  }catch{}
  applyPanelWidths();
 }
@@ -157,7 +210,7 @@ function serialize(pretty=true){return JSON.stringify(stripNode(state.root),null
 function setRoot(raw,label="Модель загружена"){
  try{
   state.root=normalizeNode(raw);
-  const shouldOpenDefaultState=!state.activeUiState&&state.modelKey==="bloom";
+  const activeState=state.activeUiState;
   const safeRoot=(state.root.Children||[]).find(x=>x.Name==="SafeRoot"&&x.ClassName==="Frame");
   state.selectedId=(safeRoot||state.root).__id;
   state.selectedIds=new Set([state.selectedId]);
@@ -165,11 +218,8 @@ function setRoot(raw,label="Модель загружена"){
   state.history=[];state.future=[];state.dirty=false;state.modelLoadFailed=false;
   try{localStorage.setItem(lastGoodModelKey(),JSON.stringify(stripNode(state.root)))}catch{}
   const push=$("#pushBtn");if(push){push.disabled=false;push.title="Записать модель в игру"}
-  if(shouldOpenDefaultState){
-   state.activeUiState="gameplay";
-   state.mode="preview";
-   state.previewScene="gameplay";
-   selectStateRoot("gameplay");
+  if(activeState){
+   selectStateRoot(activeState);
    syncToolbarFromState();
   }
   syncInsetFromRoot();renderAll();toast(label);
@@ -221,13 +271,9 @@ function redo(){if(!state.future.length)return;state.history.push(serialize(fals
 
 function currentModelLooksSafe(){
  if(!state.root||state.root.ClassName!=="ScreenGui")return false;
- if(state.targetPath===LOADING_TARGET){
-  const background=(state.root.Children||[]).find(x=>x.Name==="Background"&&x.ClassName==="Frame");
-  return !!background&&(background.Children||[]).length>0;
- }
- const safe=(state.root.Children||[]).find(x=>x.Name==="SafeRoot"&&x.ClassName==="Frame");
- return !!safe&&(safe.Children||[]).length>0;
+ return Array.isArray(state.root.Children)&&state.root.Children.length>0;
 }
+
 function markDirty(){
  state.dirty=true;
  scheduleAutoSave();
@@ -339,29 +385,6 @@ function ensureEngineV2(){
 }
 
 
-const MOCK_PREVIEW_DATA={
- currency:{Coins:"152",Honey:"68",Hive:"3",PetalDust:"1,240",AncientNectar:"7"},
- roulette:{
-  Next:{name:"Tulip",chance:"1 / 50",image:"rbxthumb://type=Asset&id=111742972197656&w=420&h=420"},
-  Current:{name:"Daisy",chance:"1 / 25",image:"rbxthumb://type=Asset&id=117046422836136&w=420&h=420"},
-  Previous:{name:"Clover",chance:"1 / 100",image:"rbxthumb://type=Asset&id=131527836752075&w=420&h=420"}
- }
-};
-
-const MENU_PREVIEW_SCENES=new Set(["inventory_v2","index","garden","hive","workshop","quests","settings","season","replay","cards"]);
-const PREVIEW_META={
- inventory_v2:{title:"Inventory",subtitle:"Flowers, bees, resources, and keepsakes"},
- index:{title:"Index",subtitle:"Discovered Flowers, Bees, Synergies, and Traits"},
- garden:{title:"Garden",subtitle:"Arrange seven Flower slots and inspect the active Synergy"},
- hive:{title:"Hive",subtitle:"Level your Hive and follow the Workshop Point road"},
- workshop:{title:"Workshop",subtitle:"Permanent upgrades and progression branches"},
- quests:{title:"Quests",subtitle:"Tasks, progress & rewards"},
- settings:{title:"Settings",subtitle:"Game & UI preferences"},
- season:{title:"Season",subtitle:"Reset progression for permanent Legacy growth"},
- replay:{title:"Tutorial Replay",subtitle:"Review every tutorial step"},
- cards:{title:"Season Cards",subtitle:"Choose the next seasonal modifier"}
-};
-
 function updateUiStateBar(){
  const bar=$("#uiStateBar");if(!bar)return;
  const current=state.activeUiState;
@@ -380,7 +403,7 @@ async function switchUiModel(path,key){
  }
  const previousPath=state.targetPath,previousKey=state.modelKey,previousRoot=state.root;
  state.targetPath=path;
- state.modelKey=key;
+ state.modelKey=key||path;
  const loaded=await pullProject();
  if(!loaded){
   state.targetPath=previousPath;state.modelKey=previousKey;state.root=previousRoot;
@@ -391,23 +414,13 @@ async function switchUiModel(path,key){
  updateStatus();
  return true;
 }
-function stateFocusName(scene){
- return {
-  gameplay:"SafeRoot",inventory_v2:"InventoryPrototype",index:"IndexPrototype",traits:"TraitHUD",garden:"GardenKit",hive:"HiveKit",workshop:"WorkshopTemplate",
-  quests:"QuestsPrototype",settings:"SettingsKit",
-  season:"SeasonKit",replay:"ReplayKit",cards:"CardsKit",
-  reward:"RewardReveal",toast:"Toast",tutorial:"TutorialGuideBanner",boosts:"ActiveBoostsHUD",
-  world_ui:"WorldUIPrototypes",loading:"Background"
- }[scene]||null;
-}
+function stateFocusName(scene){return UI_STATE_ROOTS[scene]||null}
+function stateModelPath(scene){return UI_STATE_MODELS[scene]||DEFAULT_TARGET}
 const FRAGMENT_ROOT_BASES=[
  "CloseButton","EquipButton","UnequipButton","ConfirmButton","CancelButton","BackButton",
  "PrimaryAction","IconButton","TabButton","CurrencyPill","StatusBadge","ProgressBar","Tooltip","ModalHeader"
 ];
-const DELETABLE_MENU_BASES=[
- "InventoryPrototype","IndexPrototype","WorkshopTemplate","QuestsPrototype","GardenKit","HiveKit","SettingsKit",
- "SeasonKit","ReplayKit","CardsKit"
-];
+function configuredMenuRoots(){return PROJECT_UI_STATES.map(item=>item.root).filter(Boolean)}
 function nameMatchesBase(name,base){
  const value=String(name||"");
  if(value===base)return true;
@@ -431,29 +444,32 @@ function fragmentInteractionRoot(n){
 }
 function selectedMenuRoot(node=selected()){
  let current=node;
+ const roots=configuredMenuRoots();
  while(current&&current!==state.root){
-  if(DELETABLE_MENU_BASES.some(base=>nameMatchesBase(current.Name,base)))return current;
-  const parent=findParent(current.__id);
-  if(parent?.Name==="StateKits"&&current.ClassName==="Frame")return current;
-  current=parent;
+  if(roots.some(base=>nameMatchesBase(current.Name,base)))return current;
+  current=findParent(current.__id);
  }
  return null;
 }
 function activeSceneForMenuRoot(menuRoot){
  if(!menuRoot)return null;
- for(const scene of MENU_PREVIEW_SCENES){
-  const base=stateFocusName(scene);
-  if(base&&nameMatchesBase(menuRoot.Name,base))return scene;
+ for(const config of PROJECT_UI_STATES){
+  if(config.root&&nameMatchesBase(menuRoot.Name,config.root))return config.id;
  }
  return null;
 }
-function selectStateRoot(scene){
- const wanted=stateFocusName(scene);if(!wanted||!state.root)return;
+function findStateRoot(scene){
+ const wanted=stateFocusName(scene);if(!wanted||!state.root)return null;
  let found=null;walk(state.root,n=>{if(!found&&n.Name===wanted)found=n});
+ return found;
+}
+function selectStateRoot(scene){
+ const found=findStateRoot(scene);
  if(found){state.selectedId=found.__id;state.selectedIds=new Set([found.__id]);state.selectionAnchorId=found.__id}
 }
-
 async function activateUiState(scene){
+ const config=PROJECT_UI_STATES.find(item=>item.id===scene);
+ if(!config)return;
  const closing=state.activeUiState===scene;
  if(closing){
   state.activeUiState=null;
@@ -466,11 +482,7 @@ async function activateUiState(scene){
   toast("Empty workspace");
   return;
  }
- if(scene==="loading"){
-  if(!(await switchUiModel(LOADING_TARGET,"loading")))return;
- }else{
-  if(!(await switchUiModel(DEFAULT_TARGET,"bloom")))return;
- }
+ if(!(await switchUiModel(config.modelPath||DEFAULT_TARGET,config.modelPath||scene)))return;
  state.activeUiState=scene;
  state.mode="preview";
  state.previewScene=scene;
@@ -478,90 +490,33 @@ async function activateUiState(scene){
  syncToolbarFromState();
  renderAll();
  savePrefs();
- toast((UI_STATE_TITLES[scene]||scene)+" · authored Roblox UI");
+ toast((config.label||scene)+" · authored Roblox UI");
 }
-
 function isPreview(){return !!state.activeUiState}
 function parentName(n){return findParent(n.__id)?.Name||""}
 function previewVisible(n){
- const scene=state.activeUiState;
- if(!scene)return n===state.root?true:false;
- if(state.modelKey==="loading")return scene==="loading"?null:false;
+ if(!state.activeUiState)return n===state.root?true:false;
+ const focus=findStateRoot(state.activeUiState);
+ if(!focus)return null;
+ if(n===focus)return true;
 
- const name=n.Name||"",p=parentName(n);
- if(name==="SafeRoot")return true;
- if(name==="Templates"||p==="Templates"||name==="Tooltip")return false;
- if(name==="SeedSatchelTemplate")return false;
- if(name==="TraitHUD")return scene==="gameplay"||scene==="traits";
- if(name==="TraitTooltip"||name==="TraitTierPopup")return scene==="traits";
- if(name==="InventoryPrototype")return scene==="inventory_v2";
- if(name==="IndexPrototype")return scene==="index";
- if(name==="WorkshopTemplate")return scene==="workshop";
- if(name==="QuestsPrototype")return scene==="quests";
- if(name==="StateKits")return MENU_PREVIEW_SCENES.has(scene)&&scene!=="inventory_v2"&&scene!=="index"&&scene!=="workshop"&&scene!=="quests";
- if(p==="StateKits"){
-  const wanted={
-   garden:"GardenKit",hive:"HiveKit",settings:"SettingsKit",season:"SeasonKit",replay:"ReplayKit",cards:"CardsKit"
-  }[scene];
-  return name===wanted;
+ let current=n;
+ while(current){
+  if(current===focus)return true;
+  current=current.__id?findParent(current.__id):null;
  }
- if(scene==="workshop"&&["HeaderIcon","PanelTitle","PanelSubtitle","HeaderAccent"].includes(name))return false;
- if(name==="Content"&&p==="MainPanel"&&MENU_PREVIEW_SCENES.has(scene))return false;
 
- const hudNames=new Set(["ObjectiveCard","CurrencyHUD","QuestTrackerHUD","MenuDock","RollHUD","VerticalRoulette","RollButton"]);
- if(hudNames.has(name))return scene==="gameplay";
- if(name==="MainPanel")return MENU_PREVIEW_SCENES.has(scene);
- if(name==="ModalShade")return MENU_PREVIEW_SCENES.has(scene);
- if(name==="RewardReveal")return scene==="reward";
- if(name==="Toast")return scene==="toast";
- if(name==="ActiveBoostsHUD"||name==="ActiveBoostTooltip")return scene==="boosts";
- if(name==="WorldUIPrototypes")return scene==="world_ui";
- if(["TutorialGuideBanner","TutorialSpotlight","TutorialCallout","TutorialScreenArrow"].includes(name))return scene==="tutorial";
- return null;
+ current=focus;
+ while(current){
+  if(current===n)return true;
+  current=current.__id?findParent(current.__id):null;
+ }
+ return false;
 }
-function previewText(n,parentNode){
- if(!isPreview())return null;
- const scene=state.activeUiState;
- const name=n.Name||"",p=parentNode?.Name||parentName(n);
- if(name==="ObjectiveTitle")return "JOURNEY • STEP 5";
- if(name==="ObjectiveText")return "Build your garden and discover new blooms";
- if(name==="MeterLabel")return "BLOOM  38%";
- if(name==="PanelTitle"&&PREVIEW_META[scene])return PREVIEW_META[scene].title;
- if(name==="PanelSubtitle"&&PREVIEW_META[scene])return PREVIEW_META[scene].subtitle;
- if(name==="RewardTitle"&&scene==="reward")return "Daisy";
- if(name==="RewardMeta"&&scene==="reward")return "Common • 1/25 • New";
- if(name==="ToastLabel"&&scene==="toast")return "+24 Petal Dust";
- if(name==="TutorialCallout"&&scene==="tutorial")return "Follow the highlighted target";
- if(name==="Value"&&MOCK_PREVIEW_DATA.currency[p]!=null&&scene==="gameplay")return MOCK_PREVIEW_DATA.currency[p];
- if(name==="Name"&&MOCK_PREVIEW_DATA.roulette[p]&&scene==="gameplay")return MOCK_PREVIEW_DATA.roulette[p].name;
- if(name==="Chance"&&MOCK_PREVIEW_DATA.roulette[p]&&scene==="gameplay")return MOCK_PREVIEW_DATA.roulette[p].chance;
- return null;
-}
-function previewImage(n,parentNode){
- if(!isPreview())return null;
- const scene=state.activeUiState;
- const name=n.Name||"",p=parentNode?.Name||parentName(n);
- if(name==="RewardIcon"&&scene==="reward")return "rbxthumb://type=Asset&id=117046422836136&w=420&h=420";
- if(name==="HeaderIcon"&&scene==="inventory_v2")return "rbxthumb://type=Asset&id=102678620554602&w=420&h=420";
- if(name==="HeaderIcon"&&scene==="garden")return "rbxthumb://type=Asset&id=117046422836136&w=420&h=420";
- if(name==="Icon"&&MOCK_PREVIEW_DATA.roulette[p]&&scene==="gameplay")return MOCK_PREVIEW_DATA.roulette[p].image;
- return null;
-}
-function previewSize(n){
- if(!isPreview())return null;
- const scene=state.activeUiState;
- if(n.Name==="MainPanel"&&scene==="workshop")return [[1,0],[1,0]];
- if(n.Name==="Header"&&scene==="workshop")return [[1,0],[0,0]];
- if(n.Name==="MainPanel"&&scene==="inventory_v2")return [[0,1220],[0,660]];
- if(n.Name==="MainPanel"&&scene==="index")return [[1,0],[1,0]];
- if(n.Name==="Header"&&scene==="index")return [[1,0],[0,0]];
- if(n.Name==="MainPanel"&&scene==="garden")return [[0,1040],[0,620]];
- if(n.Name==="MainPanel"&&MENU_PREVIEW_SCENES.has(scene))return [[0,600],[0,420]];
- if(n.Name==="ObjectiveProgressFill"&&scene==="gameplay")return [[.38,0],[1,0]];
- if(n.Name==="BloomFill"&&scene==="gameplay")return [[.38,0],[1,0]];
- return null;
-}
-function injectRuntimePreview(){/* UI STATE shows authored Roblox instances only. No HTML mock overlays. */}
+function previewText(){return null}
+function previewImage(){return null}
+function previewSize(){return null}
+function injectRuntimePreview(){/* Project-defined UI states show authored Roblox instances only. */}
 
 function setZoom(value,save=true){
  state.zoom=clamp(value,ZOOM_MIN,ZOOM_MAX);
@@ -2713,17 +2668,19 @@ window.addEventListener("keydown",e=>{
  changed()
 });
 
-loadPrefs();
-syncToolbarFromState();
-hydrateStudioIcons();
-loadInitial().then(()=>{
+async function bootEditor(){
+ await loadProjectUiConfig();
+ loadPrefs();
+ syncToolbarFromState();
+ hydrateStudioIcons();
+ await loadInitial();
  requestAnimationFrame(()=>fitViewport());
  assistantStatus();
- // Low-frequency safety net only; edits normally schedule their own autosave.
  setInterval(()=>{
   if(!state.suspended&&!document.hidden&&state.dirty&&hasProjectConnection()&&!state.assistantSyncing&&!state.autoSaving&&!state.autoSaveTimer)scheduleAutoSave(180)
  },1500);
-});
+}
+bootEditor().catch(error=>{console.error("[RoFlow UI Studio] boot failed",error);toast("UI Studio boot failed: "+String(error),true)});
 })();
 
 window.addEventListener("message",async event=>{
