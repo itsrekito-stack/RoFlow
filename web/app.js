@@ -713,7 +713,9 @@ window.addEventListener("message",async event=>{
   if(waiter){studioSuspendWaiters.delete(event.data.requestId);waiter(event.data.ok===true)}
   return;
  }
- if(event.data?.type==="roflow-project-changed"){
+ if(event.data?.type==="roflow-request-project-picker"){
+  await chooseProject();
+ }else if(event.data?.type==="roflow-project-changed"){
   const nextRoot=event.data.path||state.root;
   if(nextRoot)await connectRoot(nextRoot).catch(error=>log("Project switch failed: "+error));
  }else if(event.data?.type==="roflow-sync-complete"){
