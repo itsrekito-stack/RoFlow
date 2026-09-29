@@ -16,6 +16,11 @@ need(rust,'project_id: String',"project identity")
 need(rust,'ui_states: Vec<UiStateManifest>',"manifest-driven UI states")
 need(rust,'today: Vec::new()',"generic empty planner fallback")
 need(rust,'build_file_name: String',"dynamic build output")
+need(rust,'fn allowed_ui_model_paths(root: &Path)',"manifest-driven UI model allowlist")
+need(rust,'fn resolve_ui_model_path(root: &Path, requested: Option<String>)',"manifest-driven model IO")
+need(rust,'let primary_model = primary_ui_model_path(&root)?;',"manifest-driven AI Sync model")
+need(rust,'if project_changed {',"project switch lifecycle")
+need(rust,'let _ = child.kill();',"stale Rojo process cleanup")
 need(web,'projectUiStorageKey(projectId)',"project-scoped frontend state")
 need(web,'clearProjectDom()',"project switch state reset")
 need(web,'status.runtimeProbeEnabled===true',"project-scoped runtime probe")
@@ -27,6 +32,7 @@ need(studio,'function previewVisible(n)',"generic authored preview")
 for forbidden,label in [
     ('localStorage.setItem("roflowPlannerShowCompleted"', "global Planner completion preference"),
     ('const PLANNER_DEFAULTS_PATH: &str = "tools/roflow/planner-defaults.json";', "embedded Bloom planner authority"),
+    ('if !root.join(MODEL_PATH).is_file() {\n        return Err(format!("{MODEL_PATH} was not found in this project"));', "fixed BloomUI project requirement"),
 ]:
     if forbidden in web+rust:
         raise AssertionError(f"{label} must not be global/embedded")
