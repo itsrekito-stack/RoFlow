@@ -416,10 +416,10 @@ async function connectRoot(path){
  if(state.studioLoaded)unloadUiStudio("project changed");
 
  const status=await invoke("set_project_root",{path});
- clearProjectDom();
  state.root=status.root||path;
  localStorage.setItem("roflowProjectRoot",state.root);
  applyStatus(status);
+ clearProjectDom();
  loadProjectUiState(state.projectId);
  navigate(state.currentPage||"dashboard");
 
