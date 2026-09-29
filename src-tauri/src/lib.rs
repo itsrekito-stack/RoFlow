@@ -18,6 +18,8 @@ const LEGACY_PLANNER_DEFAULTS_PATH: &str = "tools/roflow/planner-defaults.json";
 const UPDATE_REMOTE_REF: &str = "refs/remotes/roflow-updater/roflow-update";
 const UPDATE_SOURCE_URL: &str = "https://github.com/itsrekito-stack/RoFlow.git";
 const UPDATE_INSTALLER_NAME: &str = "RoFlow-latest.exe";
+const HISTORY_GENERATION: &str = "standalone-v1";
+const BACKUP_REF_PREFIX: &str = "refs/roflow/standalone-v1/backups";
 
 #[derive(Default)]
 struct AppState {
@@ -79,6 +81,8 @@ struct BackupEntry {
 struct BackupStore {
     #[serde(default)]
     project_id: String,
+    #[serde(default)]
+    history_generation: String,
     backups: Vec<BackupEntry>,
 }
 
@@ -109,6 +113,8 @@ struct TaskEntry {
 struct TaskStore {
     #[serde(default)]
     project_id: String,
+    #[serde(default)]
+    history_generation: String,
     tasks: Vec<TaskEntry>,
 }
 
@@ -127,6 +133,8 @@ struct PlannerTask {
 struct PlannerStore {
     #[serde(default)]
     project_id: String,
+    #[serde(default)]
+    history_generation: String,
     today_date: String,
     today: Vec<PlannerTask>,
     roadmap: Vec<PlannerTask>,
@@ -784,6 +792,12 @@ fn load_planner_store(root: &Path, date: &str) -> Result<PlannerStore, String> {
         }
     }
     store.project_id = identity;
+    if store.history_generation != HISTORY_GENERATION {
+        // Standalone RoFlow starts with a clean visible history while preserving
+        // current planner completion for the selected project.
+        store.today_history.clear();
+        store.history_generation = HISTORY_GENERATION.to_string();
+    }
 
     store.roadmap = merge_planner_tasks(&store.roadmap, defaults.roadmap);
 
@@ -814,7 +828,9 @@ fn load_task_store(root: &Path) -> TaskStore {
         .unwrap_or_default();
     let identity = project_manifest(root).project_id;
 
-    if !store.project_id.is_empty() && store.project_id != identity {
+    if store.history_generation != HISTORY_GENERATION {
+        store = TaskStore::default();
+    } else if !store.project_id.is_empty() && store.project_id != identity {
         store = TaskStore::default();
     } else if store.project_id.is_empty() && !store.tasks.is_empty() {
         let belongs_here = store.tasks.iter().any(|task| {
@@ -827,6 +843,7 @@ fn load_task_store(root: &Path) -> TaskStore {
     }
 
     store.project_id = identity;
+    store.history_generation = HISTORY_GENERATION.to_string();
     store
 }
 
@@ -921,7 +938,9 @@ fn load_backup_store(root: &Path) -> BackupStore {
         .unwrap_or_default();
     let identity = project_manifest(root).project_id;
 
-    if !store.project_id.is_empty() && store.project_id != identity {
+    if store.history_generation != HISTORY_GENERATION {
+        store = BackupStore::default();
+    } else if !store.project_id.is_empty() && store.project_id != identity {
         store = BackupStore::default();
     } else if store.project_id.is_empty() && !store.backups.is_empty() {
         let belongs_here = store
@@ -934,6 +953,7 @@ fn load_backup_store(root: &Path) -> BackupStore {
     }
 
     store.project_id = identity;
+    store.history_generation = HISTORY_GENERATION.to_string();
     store
 }
 
@@ -951,13 +971,8 @@ fn backup_number(version: &str) -> u32 {
         .unwrap_or(0)
 }
 
-fn next_backup_version(root: &Path, store: &BackupStore) -> Result<String, String> {
-    let mut max_number = store.backups.iter().map(|b| backup_number(&b.version)).max().unwrap_or(0);
-    let refs = git(root, &["for-each-ref", "refs/roflow/backups/", "--format=%(refname:short)"])?;
-    for line in refs.lines() {
-        let label = line.rsplit('/').next().unwrap_or(line);
-        max_number = max_number.max(backup_number(label));
-    }
+fn next_backup_version(_root: &Path, store: &BackupStore) -> Result<String, String> {
+    let max_number = store.backups.iter().map(|b| backup_number(&b.version)).max().unwrap_or(0);
     Ok(format!("v0.{:03}", max_number + 1))
 }
 
@@ -1016,7 +1031,7 @@ fn create_backup_internal(
         root,
         &[
             "update-ref",
-            &format!("refs/roflow/backups/{version}"),
+            &format!("{BACKUP_REF_PREFIX}/{version}"),
             &snapshot_sha,
         ],
     )?;
