@@ -40,11 +40,9 @@ jobs:
         run: python tools/checks/roflow_safe_sync_check.py
 
       - name: Setup Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: package.json
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
