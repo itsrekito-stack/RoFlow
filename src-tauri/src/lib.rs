@@ -1486,11 +1486,36 @@ fn merge_value(base: &Value, local: &Value, remote: &Value) -> Value {
 #[tauri::command]
 fn set_project_root(path: String, state: State<AppState>) -> Result<ProjectStatus, String> {
     let root = validate_project_root(&path)?;
+
+    let project_changed = {
+        let guard = state
+            .project_root
+            .lock()
+            .map_err(|_| "Project state lock failed".to_string())?;
+        guard.as_ref().map(|current| current != &root).unwrap_or(true)
+    };
+
+    if project_changed {
+        let mut rojo = state
+            .rojo_child
+            .lock()
+            .map_err(|_| "Rojo state lock failed".to_string())?;
+        if let Some(child) = rojo.as_mut() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        *rojo = None;
+    }
+
     {
-        let mut guard = state.project_root.lock().map_err(|_| "Project state lock failed".to_string())?;
+        let mut guard = state
+            .project_root
+            .lock()
+            .map_err(|_| "Project state lock failed".to_string())?;
         *guard = Some(root.clone());
     }
-    // Connecting must stay lightweight. Backups are created only by explicit
+
+    // Connecting stays lightweight. Backups are created only by explicit
     // checkpoints, restores, or successful AI Sync operations.
     status_for(&root)
 }
@@ -2289,14 +2314,10 @@ fn health_check(state: State<AppState>) -> Result<HealthReport, String> {
     let missing_roots = manifest
         .ui_states
         .iter()
-        .filter_map(|state| {
-            parsed_models
-                .get(&state.model_path)
-                .filter(|model| json_tree_has_name(model, &state.root))
-                .map(|_| None)
-                .unwrap_or_else(|| Some(format!("{} → {}", state.id, state.root)))
+        .filter_map(|state| match parsed_models.get(&state.model_path) {
+            Some(model) if json_tree_has_name(model, &state.root) => None,
+            _ => Some(format!("{} → {}", state.id, state.root)),
         })
-        .flatten()
         .collect::<Vec<_>>();
     checks.push(HealthItem {
         name: "UI state roots".into(),
