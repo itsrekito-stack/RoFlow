@@ -43,6 +43,7 @@ struct ProjectStatus {
     build_file: String,
     runtime_probe_enabled: bool,
     release_gate_task_ids: Vec<String>,
+    ui_states: Vec<UiStateManifest>,
 }
 
 #[derive(Serialize)]
@@ -130,6 +131,21 @@ struct PlannerStore {
     today_history: HashMap<String, Vec<PlannerTask>>,
 }
 
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UiStateManifest {
+    #[serde(default)]
+    id: String,
+    #[serde(default)]
+    label: String,
+    #[serde(default)]
+    root: String,
+    #[serde(default)]
+    model_path: String,
+    #[serde(default)]
+    icon_asset_id: String,
+}
+
 #[derive(Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ProjectManifest {
@@ -147,6 +163,8 @@ struct ProjectManifest {
     runtime_probe_enabled: bool,
     #[serde(default)]
     release_gate_task_ids: Vec<String>,
+    #[serde(default)]
+    ui_states: Vec<UiStateManifest>,
 }
 
 #[derive(Clone, Default, Deserialize)]
@@ -379,6 +397,31 @@ fn project_manifest(root: &Path) -> ProjectManifest {
             && id.chars().all(|c| c.is_ascii_alphanumeric() || "-_:.".contains(c))
     });
     manifest.release_gate_task_ids.truncate(32);
+
+    manifest.ui_states.retain(|state| {
+        !state.id.trim().is_empty()
+            && state.id.len() <= 64
+            && !state.root.trim().is_empty()
+            && state.root.len() <= 128
+    });
+    for state in &mut manifest.ui_states {
+        state.id = state.id.trim().to_string();
+        if state.label.trim().is_empty() {
+            state.label = state.id.clone();
+        } else {
+            state.label = state.label.trim().chars().take(64).collect();
+        }
+        state.root = state.root.trim().chars().take(128).collect();
+        state.model_path = safe_manifest_relative_path(&state.model_path)
+            .unwrap_or_else(|| MODEL_PATH.to_string());
+        state.icon_asset_id = state
+            .icon_asset_id
+            .chars()
+            .filter(|c| c.is_ascii_digit())
+            .take(20)
+            .collect();
+    }
+    manifest.ui_states.truncate(32);
     manifest
 }
 
@@ -1097,6 +1140,7 @@ fn status_for(root: &Path) -> Result<ProjectStatus, String> {
         build_file: manifest.build_file,
         runtime_probe_enabled: manifest.runtime_probe_enabled,
         release_gate_task_ids: manifest.release_gate_task_ids,
+        ui_states: manifest.ui_states,
     })
 }
 
