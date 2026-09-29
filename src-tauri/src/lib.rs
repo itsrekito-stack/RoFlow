@@ -13,8 +13,6 @@ use std::{
 };
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
-const MODEL_PATH: &str = "src/StarterGui/BloomUI.model.json";
-const LOADING_MODEL_PATH: &str = "src/ReplicatedFirst/BloomLoadingTemplate.model.json";
 const PROJECT_MANIFEST_PATH: &str = "roflow.project.json";
 const LEGACY_PLANNER_DEFAULTS_PATH: &str = "tools/roflow/planner-defaults.json";
 const UPDATE_REMOTE_REF: &str = "refs/remotes/roflow-updater/roflow-update";
@@ -407,6 +405,7 @@ fn project_manifest(root: &Path) -> ProjectManifest {
             && state.id.len() <= 64
             && !state.root.trim().is_empty()
             && state.root.len() <= 128
+            && safe_manifest_relative_path(&state.model_path).is_some()
     });
     for state in &mut manifest.ui_states {
         state.id = state.id.trim().to_string();
@@ -417,7 +416,7 @@ fn project_manifest(root: &Path) -> ProjectManifest {
         }
         state.root = state.root.trim().chars().take(128).collect();
         state.model_path = safe_manifest_relative_path(&state.model_path)
-            .unwrap_or_else(|| MODEL_PATH.to_string());
+            .unwrap_or_default();
         state.icon_asset_id = state
             .icon_asset_id
             .chars()
@@ -430,42 +429,19 @@ fn project_manifest(root: &Path) -> ProjectManifest {
 }
 
 fn allowed_ui_model_paths(root: &Path) -> BTreeSet<String> {
-    let manifest = project_manifest(root);
-    let mut paths = BTreeSet::new();
-
-    for state in manifest.ui_states {
-        if let Some(path) = safe_manifest_relative_path(&state.model_path) {
-            paths.insert(path);
-        }
-    }
-
-    if paths.is_empty() {
-        if root.join(MODEL_PATH).is_file() {
-            paths.insert(MODEL_PATH.to_string());
-        }
-        if root.join(LOADING_MODEL_PATH).is_file() {
-            paths.insert(LOADING_MODEL_PATH.to_string());
-        }
-    }
-    paths
+    project_manifest(root)
+        .ui_states
+        .into_iter()
+        .filter_map(|state| safe_manifest_relative_path(&state.model_path))
+        .collect()
 }
 
 fn primary_ui_model_path(root: &Path) -> Result<String, String> {
-    let manifest = project_manifest(root);
-    for state in manifest.ui_states {
-        if let Some(path) = safe_manifest_relative_path(&state.model_path) {
-            return Ok(path);
-        }
-    }
-
-    if root.join(MODEL_PATH).is_file() {
-        return Ok(MODEL_PATH.to_string());
-    }
-    if root.join(LOADING_MODEL_PATH).is_file() {
-        return Ok(LOADING_MODEL_PATH.to_string());
-    }
-
-    Err("No authored UI model is configured for this project".into())
+    project_manifest(root)
+        .ui_states
+        .into_iter()
+        .find_map(|state| safe_manifest_relative_path(&state.model_path))
+        .ok_or_else(|| "No authored UI model is configured for this project".into())
 }
 
 fn resolve_ui_model_path(root: &Path, requested: Option<String>) -> Result<String, String> {
