@@ -354,8 +354,8 @@ function imageUrl(src){
 
 function ensureEngineV2(){
  if(engineV2)return engineV2;
- if(!window.BloomEditorEngineV2||!els.canvas)return null;
- engineV2=new window.BloomEditorEngineV2({
+ if(!window.RoFlowEditorEngineV2||!els.canvas)return null;
+ engineV2=new window.RoFlowEditorEngineV2({
   canvas:els.canvas,proxyHost:els.guiRoot,device:els.device,scroller:els.stageScroller,
   adapter:{
    isModifier:n=>MODIFIERS.has(n?.ClassName),
