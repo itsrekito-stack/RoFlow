@@ -837,9 +837,19 @@ fn load_task_store(root: &Path) -> TaskStore {
         .and_then(|text| serde_json::from_str::<TaskStore>(&text).ok())
         .unwrap_or_default();
     let identity = project_manifest(root).project_id;
+
     if !store.project_id.is_empty() && store.project_id != identity {
         store = TaskStore::default();
+    } else if store.project_id.is_empty() && !store.tasks.is_empty() {
+        let belongs_here = store.tasks.iter().any(|task| {
+            git_commit_exists(root, &task.head_before)
+                || git_commit_exists(root, &task.head_after)
+        });
+        if !belongs_here {
+            store = TaskStore::default();
+        }
     }
+
     store.project_id = identity;
     store
 }
@@ -849,6 +859,15 @@ fn save_task_store(root: &Path, store: &TaskStore) -> Result<(), String> {
     let mut text = serde_json::to_string_pretty(store).map_err(|e| e.to_string())?;
     text.push('\n');
     fs::write(task_store_path(root), text).map_err(|e| e.to_string())
+}
+
+fn git_commit_exists(root: &Path, sha: &str) -> bool {
+    let value = sha.trim();
+    if value.is_empty() || value.len() > 64 || !value.chars().all(|c| c.is_ascii_hexdigit()) {
+        return false;
+    }
+    let spec = format!("{value}^{{commit}}");
+    git(root, &["cat-file", "-e", &spec]).is_ok()
 }
 
 fn unix_now() -> Result<u64, String> {
@@ -925,9 +944,19 @@ fn load_backup_store(root: &Path) -> BackupStore {
         .and_then(|text| serde_json::from_str::<BackupStore>(&text).ok())
         .unwrap_or_default();
     let identity = project_manifest(root).project_id;
+
     if !store.project_id.is_empty() && store.project_id != identity {
         store = BackupStore::default();
+    } else if store.project_id.is_empty() && !store.backups.is_empty() {
+        let belongs_here = store
+            .backups
+            .iter()
+            .any(|backup| git_commit_exists(root, &backup.source_head));
+        if !belongs_here {
+            store = BackupStore::default();
+        }
     }
+
     store.project_id = identity;
     store
 }
