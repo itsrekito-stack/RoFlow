@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>RoFlow</title>
+  <link rel="stylesheet" href="./app.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="mark">R</span><div><strong>RoFlow</strong><small>Roblox development workflow</small></div></div>
+      <nav>
+        <button class="nav active" data-page="dashboard">Dashboard</button>
+        <button class="nav" data-page="sync">AI Sync</button>
+        <button class="nav" data-page="changes">Changes <span id="changesBadge" class="nav-badge">0</span></button>
+        <button class="nav" data-page="planner">Planner <span id="plannerBadge" class="nav-badge">0/0</span></button>
+        <button class="nav" data-page="tasks">AI Tasks</button>
+        <button class="nav" data-page="roblox">Roblox</button>
+        <button class="nav" data-page="ui">UI Studio</button>
+        <button class="nav backup-nav" id="backupsBtn">Backups <span id="backupNavVersion">—</span></button>
+        <button class="nav" data-page="logs">Logs</button>
+      </nav>
+      <div class="sidebar-foot"><span class="dot"></span><span id="sideStatus">No project</span></div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">DAILY DEV HUB · ROFLOW v0.011</p>
+          <h1 id="pageTitle">Dashboard</h1>
+        </div>
+        <div class="actions">
+          <span id="updateBadge" class="pill muted-pill">AUTO UPDATE</span>
+          <button id="refreshBtn" class="btn">Refresh</button>
+          <button id="chooseBtn" class="btn primary">Choose Project</button>
+        </div>
+      </header>
+
+      <section id="dashboardPage" class="page active">
+        <div class="hero">
+          <div>
+            <p class="eyebrow">DEVELOPMENT CYCLE</p>
+            <h2>Prompt → Sync → Review → Build → Studio</h2>
+            <p>One workspace for the repetitive parts of Bloom RNG development. RoFlow keeps every destructive step explicit and recoverable.</p>
+          </div>
+          <div class="hero-actions">
+            <button id="devCycleBtn" class="btn primary hero-btn">DEV CYCLE</button>
+            <button id="checkpointBtn" class="btn hero-btn">Checkpoint</button>
+            <button id="healthBtn" class="btn hero-btn">Health Check</button>
+          </div>
+        </div>
+
+        <div class="status-grid">
+          <article class="card"><span class="label">PROJECT</span><strong id="projectName">Not connected</strong><p id="projectPath">Choose your Bloom_RNG folder once.</p></article>
+          <article class="card"><span class="label">GIT</span><strong id="branchValue">—</strong><p id="commitValue">No repository loaded.</p></article>
+          <article class="card"><span class="label">WORKTREE</span><strong id="dirtyValue">—</strong><p id="changeCount">Waiting for project.</p></article>
+          <article class="card"><span class="label">BACKUP</span><strong id="backupValue">—</strong><p id="backupStats">No checkpoint loaded.</p></article>
+          <article class="card"><span class="label">HEALTH</span><strong id="healthValue">—</strong><p id="healthStats">Run project health check.</p></article>
+          <article class="card"><span class="label">ROJO</span><strong id="rojoValue">—</strong><p id="rojoStats">Rojo status unknown.</p></article>
+        </div>
+
+        <article class="card today-preview-card">
+          <div class="section-head">
+            <div><span class="label">TODAY</span><h3 id="todayPreviewTitle">Today’s Focus</h3></div>
+            <div class="today-summary"><span id="todayPreviewCount">0/0</span><button class="link-btn" data-go="planner">Open planner</button></div>
+          </div>
+          <div id="todayPreview" class="today-preview-list"><div class="empty-state">Connect a project to load today’s tasks.</div></div>
+        </article>
+
+        <div class="dashboard-columns">
+          <article class="card">
+            <div class="section-head"><div><span class="label">RECENT ACTIVITY</span><h3>AI & Git tasks</h3></div><button class="link-btn" data-go="tasks">View all</button></div>
+            <div id="recentTasks" class="activity-list"><div class="empty-state">No task history yet.</div></div>
+          </article>
+          <article class="card">
+            <div class="section-head"><div><span class="label">PROJECT HEALTH</span><h3>Safety checks</h3></div><span id="healthPill" class="pill muted-pill">NOT RUN</span></div>
+            <div id="healthList" class="health-list"><div class="empty-state">Run Health Check to verify Git, Rojo and authored UI files.</div></div>
+          </article>
+        </div>
+
+        <article class="card cycle-card">
+          <div><span class="label">LAST DEV CYCLE</span><h3 id="cycleTitle">Ready</h3><p id="cycleText">DEV CYCLE creates a checkpoint, performs safe AI Sync, then runs project health checks. It never commits or pushes automatically.</p></div>
+          <pre id="cycleOutput">Waiting.</pre>
+        </article>
+      </section>
+
+      <section id="syncPage" class="page">
+        <article class="card wide">
+          <span class="label">AI SYNC</span>
+          <h2>Safe Git synchronization</h2>
+          <p>Preserves local UI work, fast-forwards Git, restores unrelated work, merges BloomUI.model.json and creates a checkpoint.</p>
+          <button id="syncBtn" class="btn primary big">AI SYNC</button>
+          <pre id="syncOutput">Ready.</pre>
+        </article>
+      </section>
+
+      <section id="changesPage" class="page changes-page">
+        <div class="changes-toolbar">
+          <div><span class="label">GIT REVIEW</span><h2>Local Changes</h2></div>
+          <div class="actions"><button id="changesCheckpointBtn" class="btn">Checkpoint</button><button id="reloadChangesBtn" class="btn">Reload</button></div>
+        </div>
+        <div class="changes-workspace">
+          <aside class="file-panel">
+            <div id="fileList" class="file-list"><div class="empty-state">Choose a project first.</div></div>
+          </aside>
+          <section class="diff-panel">
+            <div class="diff-head"><strong id="diffTitle">Select a changed file</strong><span id="diffMeta">—</span></div>
+            <div id="diffOutput" class="diff-output"><div class="empty-state">A unified diff will appear here.</div></div>
+          </section>
+        </div>
+        <div class="commit-bar">
+          <input id="commitMessage" maxlength="180" placeholder="Commit message, e.g. feat: improve garden UI">
+          <button id="commitBtn" class="btn primary">Commit Changes</button>
+        </div>
+      </section>
+
+      <section id="plannerPage" class="page">
+        <div class="page-heading">
+          <div><span class="label">BLOOM RNG GOALS</span><h2>Implementation Goals & Release Roadmap</h2></div>
+          <div class="planner-heading-actions">
+            <button id="plannerCompletedToggle" class="btn planner-filter-btn" type="button" aria-pressed="true">Hide completed</button>
+            <div class="planner-date"><span id="plannerDate">—</span></div>
+          </div>
+        </div>
+        <div class="planner-summary-grid">
+          <article class="card planner-summary-card">
+            <span class="label">TODAY</span>
+            <strong id="todayProgressText">0 / 0</strong>
+            <p>Current focus tasks for this development day.</p>
+            <div class="progress-track"><span id="todayProgressBar"></span></div>
+          </article>
+          <article class="card planner-summary-card">
+            <span class="label">RELEASE ROADMAP</span>
+            <strong id="releaseProgressText">0 / 0</strong>
+            <p>Everything tracked from current alpha state to public release.</p>
+            <div class="progress-track"><span id="releaseProgressBar"></span></div>
+          </article>
+        </div>
+        <div class="planner-layout">
+          <section class="planner-column">
+            <div class="planner-column-head"><span class="label">TODAY’S TASKS</span><span id="todayPercent">0%</span></div>
+            <div id="todayTaskList" class="planner-list"><div class="empty-state">Choose a project first.</div></div>
+          </section>
+          <section class="planner-column roadmap-column">
+            <div class="planner-column-head"><span class="label">GOALS & ROADMAP</span><span id="releasePercent">0%</span></div>
+            <div id="roadmapTaskList" class="roadmap-list"><div class="empty-state">Choose a project first.</div></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="tasksPage" class="page">
+        <div class="page-heading"><div><span class="label">HISTORY</span><h2>AI & Development Tasks</h2></div><button id="reloadTasksBtn" class="btn">Refresh</button></div>
+        <div id="taskList" class="task-list"><div class="empty-state">No recorded tasks yet.</div></div>
+      </section>
+
+      <section id="robloxPage" class="page">
+        <div class="page-heading"><div><span class="label">ROJO / ROBLOX</span><h2>Runtime Tools</h2></div><button id="refreshRojoBtn" class="btn">Refresh</button></div>
+        <div class="roblox-grid">
+          <article class="card">
+            <span class="label">ROJO STATUS</span>
+            <strong id="rojoPageState">Unknown</strong>
+            <p id="rojoPageDetail">Connect a project first.</p>
+            <div class="button-row"><button id="startRojoBtn" class="btn primary">Start Serve</button><button id="stopRojoBtn" class="btn">Stop</button></div>
+          </article>
+          <article class="card">
+            <span class="label">BUILD</span>
+            <strong>BloomRNG.rbxl</strong>
+            <p>Build the current Rojo source tree, then open the generated place in Roblox Studio.</p>
+            <div class="button-row"><button id="buildBtn" class="btn primary">Build</button><button id="openStudioBtn" class="btn">Open Studio</button></div>
+          </article>
+        </div>
+        <article class="card runtime-qa-card">
+          <div class="section-head">
+            <div><span class="label">STUDIO QA</span><h3>Runtime acceptance</h3></div>
+            <button id="refreshRuntimeProbeBtn" class="btn">Read Studio Log</button>
+          </div>
+          <div class="runtime-qa-grid">
+            <div><span class="label">MILESTONES</span><strong id="runtimeMilestones">—</strong><small id="runtimeEvidence">No probe data yet.</small></div>
+            <div><span class="label">SERVER</span><strong id="runtimeServerCheckpoint">—</strong><small>Latest checkpoint</small></div>
+            <div><span class="label">CLIENT</span><strong id="runtimeClientCheckpoint">—</strong><small>Latest checkpoint</small></div>
+            <div><span class="label">PERSISTENCE</span><strong id="runtimePersistence">—</strong><small>JOIN / LEAVE digest evidence</small></div>
+          </div>
+          <div class="runtime-qa-readiness">
+            <span id="qaCoreEvidence" class="qa-evidence">CORE LOOP · WAITING</span>
+            <span id="qaPersistenceEvidence" class="qa-evidence">PERSISTENCE · WAITING</span>
+            <span id="qaBaselineEvidence" class="qa-evidence">10M BASELINE · WAITING</span>
+            <span id="qaOnboardingEvidence" class="qa-evidence">ONBOARDING · WAITING</span>
+            <span id="qaMultiplayerEvidence" class="qa-evidence">MULTIPLAYER · WAITING</span>
+            <span id="qaSoakEvidence" class="qa-evidence">SOAK · WAITING</span>
+          </div>
+          <div id="releaseGate" class="release-gate">
+            <div class="release-gate-copy">
+              <span class="label">FINAL RELEASE GATE</span>
+              <strong id="releaseGateState">BLOCKED</strong>
+              <small id="releaseGateDetail">Runtime evidence 0/6 · manual release checks 0/5</small>
+            </div>
+            <div class="release-gate-meter" aria-hidden="true"><span id="releaseGateBar"></span></div>
+          </div>
+          <div id="runtimeProbeMeta" class="runtime-qa-meta">Start Play in Roblox Studio to collect RuntimeProbe evidence.</div>
+          <pre id="runtimeProbeOutput" class="runtime-qa-output">Waiting for Roblox Studio probe output.</pre>
+        </article>
+        <article class="card output-card"><span class="label">OUTPUT</span><pre id="rojoOutput">Ready.</pre></article>
+      </section>
+
+      <section id="uiPage" class="page ui-page">
+        <button id="reloadStudioBtn" class="studio-reload-fallback" title="Reload UI Studio">↻</button>
+        <iframe id="uiStudioFrame" title="RoFlow UI Studio"></iframe>
+      </section>
+
+      <section id="logsPage" class="page">
+        <article class="card wide"><span class="label">SESSION LOG</span><h2>RoFlow activity</h2><pre id="logOutput">RoFlow started.</pre></article>
+      </section>
+    </main>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>
