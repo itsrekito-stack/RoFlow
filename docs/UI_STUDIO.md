@@ -1,79 +1,74 @@
-# Bloom UI Studio
+# RoFlow UI Studio
 
-Bloom UI Studio — визуальный редактор Roblox ScreenGui внутри desktop-приложения RoFlow.
+RoFlow UI Studio is the project-scoped visual editor for authored Roblox ScreenGui models.
 
-Основной режим работы больше не строится вокруг старой схемы DESIGN/PREVIEW и mock HTML. Редактор работает от **UI STATES**: выбираешь конкретное состояние игры и редактируешь настоящие Roblox GUI instances из Rojo-модели.
+It is bundled inside the standalone RoFlow desktop app. The selected game repository does not need to contain RoFlow or a copy of the editor.
 
-## Главный принцип
+## Project-owned UI states
 
-Постоянный игровой интерфейс должен быть authored в Roblox GUI-моделях.
+The left UI state rail is generated from the selected project's root-level `roflow.project.json`.
 
-- Основной HUD и окна: `src/StarterGui/BloomUI.model.json`
-- Loading Screen: `src/ReplicatedFirst/BloomLoadingTemplate.model.json`
-- Runtime Luau связывает данные, события и клонирует authored templates для динамических списков.
-- Скрипты не должны собирать постоянный ScreenGui через `Instance.new()`.
-- World-space объекты могут создаваться runtime, но их визуальные UI-прототипы хранятся в `WorldUIPrototypes` и редактируются через UI Studio.
+Example:
 
-## UI STATES
+```json
+{
+  "schemaVersion": 1,
+  "projectId": "my-game",
+  "uiStates": [
+    {
+      "id": "inventory",
+      "label": "Inventory",
+      "root": "InventoryPanel",
+      "modelPath": "src/StarterGui/GameUI.model.json"
+    },
+    {
+      "id": "workshop",
+      "label": "Workshop",
+      "root": "WorkshopPanel",
+      "modelPath": "src/StarterGui/GameUI.model.json"
+    }
+  ]
+}
+```
 
-Левая вертикальная панель — основной способ навигации:
+RoFlow does not ship a fixed list such as Inventory, Trials, Season or World UI. If a project does not declare a state, that state does not appear.
 
-- HUD
-- Inventory
-- Workshop
-- Field Guide
-- Map
-- Trials
-- Settings
-- Plant
-- Season
-- Replay
-- Cards
-- Reward
-- Toast
-- Tutorial
-- Active Boosts
-- World UI
-- Loading
+Clicking a state focuses its authored Roblox Instance subtree. Clicking the active state again returns to an empty workspace.
 
-Нажатие на state показывает только его authored Roblox UI на canvas и переводит Explorer/Inspector в контекст этого интерфейса.
+## Model access
 
-**Повторное нажатие на уже активный state закрывает его и возвращает пустой рабочий стол.**
+UI Studio can read and write only model paths declared by the current project's `uiStates`.
 
-Loading автоматически переключает редактор на отдельную `BloomLoadingTemplate.model.json`. Возврат к любому игровому state автоматически возвращает `BloomUI.model.json`.
+This prevents a state from one project from opening or modifying an unrelated file in another project.
 
-## Desktop workflow
+The first declared UI model is also the semantic merge model used by desktop Safe AI Sync.
 
-Используй Bloom UI Studio через **RoFlow**. Это основной desktop workflow.
+## Project isolation
 
-Верхняя панель:
+UI Studio preferences use the same project ID as RoFlow:
 
-- **Project** — выбрать проект.
-- **Save** — записать текущую Roblox GUI-модель.
-- **AI SYNC** — забрать актуальный `main`, безопасно объединить authored UI и перезагрузить текущую модель.
-- Undo / Redo.
-- Import / Export JSON.
-- Copy model for AI.
+- viewport and zoom
+- editor panel sizes
+- selected model path
+- last-good recovery model
+- editor preferences
 
-Старый запуск через локальную HTML-страницу остаётся только как developer fallback для отладки самого редактора; это не основной пользовательский workflow.
+Switching project A → B creates/loads B's namespace. Returning B → A restores A's namespace.
+
+## Authored UI principle
+
+Persistent interface structure should exist as Roblox GUI Instances in Rojo model JSON.
+
+Runtime Luau should bind data and events to authored UI and may clone authored templates for dynamic lists. It should not recreate the permanent interface from scratch unless a runtime-only object genuinely requires it.
 
 ## Canvas
 
-Canvas использует реальные Roblox viewport размеры:
+The editor supports:
 
-- 1366×768
-- 1280×720
-- 1920×1080
-- 1440×900
-- mobile/custom
-
-Можно загрузить screenshot Roblox как background и подгонять интерфейс поверх реального кадра.
-
-Поддерживаются:
-
-- UDim2 / AnchorPoint
+- real viewport dimensions
+- UDim / UDim2 / AnchorPoint
 - ZIndex
-- transparency / colors
+- colors and transparency
 - TextLabel / TextButton / TextBox
 - ImageLabel / ImageButton
 - ScrollingFrame
@@ -85,33 +80,38 @@ Canvas использует реальные Roblox viewport размеры:
 - multi-select
 - group / ungroup
 - duplicate
-- exact Inspector
-- smart guides
-- snapping
+- Explorer and Inspector
+- smart guides and snapping
 - undo / redo
 
-## Explorer и Inspector
+## Desktop workflow
 
-Когда UI STATE не выбран, workspace и Explorer остаются пустыми — это нормальное состояние.
+Use UI Studio from RoFlow:
 
-После выбора state редактор фокусирует соответствующий authored root. Из Explorer можно менять иерархию, а через Inspector — реальные Roblox properties.
+1. Choose the Roblox/Rojo Project Folder.
+2. RoFlow reads `roflow.project.json`.
+3. Open **UI Studio**.
+4. Select one of that project's declared UI states.
+5. Edit the authored Roblox GUI model.
+6. Save or run Safe AI Sync from RoFlow.
 
-Не создавай отдельный декоративный HTML-preview вместо Roblox UI. Если элемент должен существовать в игре, он должен существовать в одной из authored GUI-моделей.
+Safe AI Sync is implemented by the desktop Rust backend and preserves local work around Git pulls.
 
-## Динамические интерфейсы
+## Developer browser fallback
 
-Некоторые списки зависят от профиля игрока: Inventory cards, Settings rows, Trials, Field Guide rows и т. п.
+`ui-studio/server.py` exists only for editor development.
 
-Для них в ScreenGui существуют authored templates/state kits. Runtime может:
+Run:
 
-1. найти authored template;
-2. клонировать его;
-3. подставить серверные данные;
-4. подключить события.
+```powershell
+python ui-studio/server.py --project C:\path\to\your\game
+```
 
-Геометрия, stroke, corner, padding, fonts, icons и базовый стиль остаются редактируемыми в UI Studio.
+It provides the static editor, Roblox thumbnails and optional Git status.
 
-## Горячие клавиши
+For safety, browser fallback does **not** mutate Git and does not implement Safe AI Sync. Use RoFlow desktop for project synchronization.
+
+## Keyboard shortcuts
 
 - Ctrl+Z / Ctrl+Y — undo / redo
 - Ctrl+D — duplicate
@@ -119,29 +119,16 @@ Canvas использует реальные Roblox viewport размеры:
 - Delete — delete
 - F2 — rename
 - Arrow keys — nudge 1 px
-- Shift+Arrow — nudge по Snap
-- Ctrl+F — поиск в Explorer
+- Shift+Arrow — nudge by Snap
+- Ctrl+F — Explorer search
 - Ctrl+G — group
 - Ctrl+Shift+G — ungroup
 - Ctrl+S — Save
 - 0 — Fit viewport
-- Esc — закрыть активный UI STATE / свернуть multi-selection
+- Esc — close the active UI state / selection context
 
-## Geometry
+## Rendering precision
 
-Geometry helpers существуют только в редакторе и не попадают в Roblox:
+UI Studio writes the authored Rojo model JSON rather than a screenshot.
 
-- rulers;
-- viewport center axes;
-- safe inset line;
-- live X/Y/W/H;
-- distances to parent;
-- smart guides;
-- smart snap к родителю, viewport и соседям;
-- Alt временно отключает smart snap.
-
-## Точность
-
-Редактор сохраняет Rojo model JSON напрямую. UDim/UDim2 offsets нормализуются до целых значений перед записью.
-
-Некоторые вещи рендерятся приблизительно относительно Roblox Engine: точная Gotham rasterization, отдельные AutomaticSize случаи, сложные UIGradient sequences, image slicing и platform-specific CoreGui inset. Сами свойства при этом не теряются.
+Some browser rendering details can only approximate Roblox Engine behavior, such as exact font rasterization, complex AutomaticSize cases, gradients, slicing and platform CoreGui inset. The stored Roblox properties are still preserved.
