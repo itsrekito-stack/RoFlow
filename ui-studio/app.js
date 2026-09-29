@@ -15,7 +15,9 @@ const CONTAINERS=new Set(["ScreenGui","Frame","ScrollingFrame","TextButton","Ima
 const CREATION_CONTAINERS=new Set(["ScreenGui","Frame","ScrollingFrame"]);
 const DEFAULT_TARGET="src/StarterGui/BloomUI.model.json";
 const LOADING_TARGET="src/ReplicatedFirst/BloomLoadingTemplate.model.json";
-function lastGoodModelKey(){return state?.targetPath===LOADING_TARGET?"BloomUIStudioLastGoodModelLoading":"BloomUIStudioLastGoodModel"}
+const PROJECT_SCOPE=new URLSearchParams(location.search).get("project")||"unscoped";
+const scopedKey=name=>name+":"+PROJECT_SCOPE;
+function lastGoodModelKey(){return scopedKey(state?.targetPath===LOADING_TARGET?"BloomUIStudioLastGoodModelLoading":"BloomUIStudioLastGoodModel")}
 const UI_STATE_TITLES={
  gameplay:"HUD",inventory_v2:"Inventory",index:"Index",traits:"Traits",garden:"Garden",hive:"Hive",workshop:"Workshop",quests:"Quests",
  settings:"Settings",season:"Season",replay:"Tutorial Replay",cards:"Cards",
@@ -53,7 +55,7 @@ function hasProjectConnection(){return ROFLOW_NATIVE?state.nativeProjectReady:!!
 
 const state={
  root:null,selectedId:null,viewport:{w:1366,h:768},zoom:.72,snap:8,labels:false,grid:true,showHidden:true,geometry:true,inset:36,mode:"design",previewScene:"gameplay",
- projectHandle:null,nativeProjectReady:false,targetPath:localStorage.getItem("bloomTargetPath")||DEFAULT_TARGET,
+ projectHandle:null,nativeProjectReady:false,targetPath:localStorage.getItem(scopedKey("bloomTargetPath"))||DEFAULT_TARGET,
  activeUiState:null,modelKey:"bloom",history:[],future:[],dirty:false,drag:null,panelResize:null,explorerW:252,inspectorW:300,collapsed:new Set(),clipboard:null,treeQuery:"",pan:null,selectedIds:new Set(),selectionAnchorId:null,treeDragIds:[],assistantSyncing:false,bridgeBase:"",modelLoadFailed:false,autoSaveTimer:null,autoSaving:false,autoSaveQueued:false,lastAutoSaveError:"",suspended:false
 };
 
@@ -72,7 +74,7 @@ const ud=(s=0,o=0)=>({UDim:[s,o]});
 const u2=(xs=0,xo=0,ys=0,yo=0)=>({UDim2:[[xs,xo],[ys,yo]]});
 const v2=(x=0,y=0)=>({Vector2:[x,y]});
 
-const PREFS_KEY="BloomUIStudioPrefsV1";
+const PREFS_KEY=scopedKey("BloomUIStudioPrefsV1");
 function applyPanelWidths(){
  document.documentElement.style.setProperty("--explorer-w",Math.round(state.explorerW)+"px");
  document.documentElement.style.setProperty("--inspector-w",Math.round(state.inspectorW)+"px");
@@ -385,7 +387,7 @@ async function switchUiModel(path,key){
   updateStatus();
   return false;
  }
- localStorage.setItem("bloomTargetPath",path);
+ localStorage.setItem(scopedKey("bloomTargetPath"),path);
  updateStatus();
  return true;
 }
