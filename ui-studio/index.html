@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RoFlow · UI Studio</title>
+<link rel="stylesheet" href="./app.css?v=19">
+</head>
+<body>
+<div id="app" class="studio-app">
+  <header class="app-titlebar">
+    <div class="desktop-command-label"><strong>UI STUDIO</strong><span>CANVAS ENGINE V2</span></div>
+    <div class="brand">
+      <div class="brand-mark">✿</div>
+      <div class="brand-copy">
+        <strong>RoFlow UI Studio</strong>
+        <small>Project-scoped ScreenGui workspace</small>
+      </div>
+    </div>
+    <div class="project-chip">
+      <span class="project-dot"></span>
+      <span id="targetReadout">src/StarterGui/BloomUI.model.json</span>
+    </div>
+    <div class="top-actions">
+      <button id="connectBtn" class="tool-action"><span>⌂</span> Project</button>
+      <button id="pullBtn" class="icon-btn" title="Reload model from project">↙</button>
+      <button id="pushBtn" class="tool-action primary"><span>↗</span> Save</button>
+      <button id="aiSyncBtn" class="tool-action ai-sync-btn"><span>✦</span> AI SYNC</button>
+      <span id="aiBridgeStatus" class="bridge-status">bridge</span>
+      <span class="toolbar-sep"></span>
+      <button id="undoBtn" class="icon-btn" title="Undo · Ctrl+Z">↶</button>
+      <button id="redoBtn" class="icon-btn" title="Redo · Ctrl+Y">↷</button>
+      <button id="importBtn" class="icon-btn" title="Import JSON">⇧</button>
+      <button id="exportBtn" class="icon-btn" title="Export JSON">⇩</button>
+      <button id="copyBtn" class="icon-btn" title="Copy model">AI</button>
+    </div>
+  </header>
+
+  <section class="app-workspace">
+    <nav id="uiStateBar" class="state-rail" aria-label="UI states">
+      <div class="rail-head">
+        <span>UI</span>
+        <small>STATES</small>
+      </div>
+      <button class="ui-state-btn" data-ui-state="gameplay" title="HUD"><b><img data-asset-id="125311014921608" alt=""></b><span>HUD</span></button>
+      <button class="ui-state-btn" data-ui-state="inventory_v2" title="Inventory"><b><img data-asset-id="102678620554602" alt=""></b><span>Inventory</span></button>
+      <button class="ui-state-btn" data-ui-state="index" title="Index"><b><img data-asset-id="95009714203350" alt=""></b><span>Index</span></button>
+      <button class="ui-state-btn" data-ui-state="traits" title="Traits"><b><img data-asset-id="73022903468214" alt=""></b><span>Traits</span></button>
+      <button class="ui-state-btn" data-ui-state="garden" title="Garden"><b><img data-asset-id="117046422836136" alt=""></b><span>Garden</span></button>
+      <button class="ui-state-btn" data-ui-state="hive" title="Hive"><b><img data-asset-id="112708830524820" alt=""></b><span>Hive</span></button>
+      <button class="ui-state-btn" data-ui-state="workshop" title="Workshop"><b><img data-asset-id="121024323846687" alt=""></b><span>Workshop</span></button>
+      <button class="ui-state-btn" data-ui-state="quests" title="Quests"><b><img data-asset-id="131527836752075" alt=""></b><span>Quests</span></button>
+      <button class="ui-state-btn" data-ui-state="settings" title="Settings"><b><img data-asset-id="74677124320045" alt=""></b><span>Settings</span></button>
+      <div class="rail-sep"></div>
+      <button class="ui-state-btn" data-ui-state="season" title="Season"><b><img data-asset-id="98986636122613" alt=""></b><span>Season</span></button>
+      <button class="ui-state-btn" data-ui-state="replay" title="Tutorial Replay"><b><img data-asset-id="110567723791302" alt=""></b><span>Replay</span></button>
+      <button class="ui-state-btn" data-ui-state="cards" title="Season Cards"><b><img data-asset-id="95009714203350" alt=""></b><span>Cards</span></button>
+      <div class="rail-sep"></div>
+      <button class="ui-state-btn" data-ui-state="reward" title="Reward"><b><img data-asset-id="112568733630169" alt=""></b><span>Reward</span></button>
+      <button class="ui-state-btn" data-ui-state="toast" title="Toast"><b><img data-asset-id="72782667939249" alt=""></b><span>Toast</span></button>
+      <button class="ui-state-btn" data-ui-state="tutorial" title="Tutorial guidance"><b><img data-asset-id="110567723791302" alt=""></b><span>Tutorial</span></button>
+      <button class="ui-state-btn" data-ui-state="boosts" title="Active Boosts"><b><img data-asset-id="73022903468214" alt=""></b><span>Boosts</span></button>
+      <button class="ui-state-btn" data-ui-state="world_ui" title="World UI prototypes"><b><img data-asset-id="74690198578201" alt=""></b><span>World UI</span></button>
+      <button class="ui-state-btn" data-ui-state="loading" title="Loading Screen"><b><img data-asset-id="98986636122613" alt=""></b><span>Loading</span></button>
+      <div class="rail-foot">Click active state again for empty desk</div>
+    </nav>
+
+    <aside class="sidebar explorer">
+      <div class="panel-head">
+        <div><strong>Explorer</strong><small>ScreenGui hierarchy</small></div>
+        <button id="addMenuBtn" class="icon-btn compact" title="Add object">＋</button>
+      </div>
+      <div class="tree-search-wrap">
+        <span>⌕</span><input id="treeSearch" type="search" placeholder="Search instances"><kbd>Ctrl F</kbd>
+      </div>
+      <div id="treeSearchMeta" class="tree-search-meta"></div>
+      <div class="section-title">
+        <span>HIERARCHY</span>
+        <div class="tree-actions">
+          <button id="outdentBtn" class="tiny" title="Outdent">↰</button>
+          <button id="groupBtn" class="tiny" title="Group">▣</button>
+          <button id="ungroupBtn" class="tiny" title="Ungroup">◫</button>
+          <button id="duplicateBtn" class="tiny" title="Duplicate">⧉</button>
+          <button id="deleteMenuBtn" class="tiny danger menu-delete" title="Delete whole menu containing selection">▣×</button>
+          <button id="deleteBtn" class="tiny danger" title="Delete selected object">⌫</button>
+        </div>
+      </div>
+      <div id="tree" class="tree"></div>
+      <details class="object-drawer">
+        <summary><span>＋</span> Add Roblox Instance</summary>
+        <div id="palette" class="palette">
+          <button data-add="Frame"><i>▣</i><span>Frame</span></button>
+          <button data-add="TextLabel"><i>T</i><span>Text</span></button>
+          <button data-add="TextButton"><i>▤</i><span>Button</span></button>
+          <button data-add="ImageLabel"><i>◈</i><span>Image</span></button>
+          <button data-add="ImageButton"><i>◇</i><span>Image Button</span></button>
+          <button data-add="ScrollingFrame"><i>↕</i><span>Scroll</span></button>
+          <button data-add="UICorner"><i>◜</i><span>Corner</span></button>
+          <button data-add="UIStroke"><i>□</i><span>Stroke</span></button>
+          <button data-add="UIListLayout"><i>☷</i><span>List</span></button>
+          <button data-add="UIGridLayout"><i>▦</i><span>Grid</span></button>
+          <button data-add="UIPadding"><i>↔</i><span>Padding</span></button>
+        </div>
+      </details>
+      <details class="object-drawer pattern-drawer" open>
+        <summary><span>✦</span> UI Patterns <small>READY FRAGMENTS</small></summary>
+        <div id="patternPalette" class="pattern-palette">
+          <button data-pattern="close"><i>×</i><span><b>Close</b><small>Square X button</small></span></button>
+          <button data-pattern="equip"><i>✓</i><span><b>Equip</b><small>Primary green action</small></span></button>
+          <button data-pattern="unequip"><i>−</i><span><b>Unequip</b><small>Secondary action</small></span></button>
+          <button data-pattern="confirm"><i>✓</i><span><b>Confirm</b><small>Positive confirmation</small></span></button>
+          <button data-pattern="cancel"><i>×</i><span><b>Cancel</b><small>Neutral cancel</small></span></button>
+          <button data-pattern="back"><i>‹</i><span><b>Back</b><small>Navigation button</small></span></button>
+          <button data-pattern="primary"><i>→</i><span><b>Primary Action</b><small>Main CTA</small></span></button>
+          <button data-pattern="icon"><i>◆</i><span><b>Icon Button</b><small>Compact square action</small></span></button>
+          <button data-pattern="tab"><i>▤</i><span><b>Tab</b><small>Selected tab button</small></span></button>
+          <button data-pattern="currency"><i>✦</i><span><b>Currency Pill</b><small>Icon + amount</small></span></button>
+          <button data-pattern="badge"><i>!</i><span><b>Badge</b><small>Small status badge</small></span></button>
+          <button data-pattern="progress"><i>▬</i><span><b>Progress Bar</b><small>Track + fill + label</small></span></button>
+          <button data-pattern="tooltip"><i>?</i><span><b>Tooltip</b><small>Hint bubble</small></span></button>
+          <button data-pattern="modalHeader"><i>▰</i><span><b>Modal Header</b><small>Title + close button</small></span></button>
+        </div>
+      </details>
+    </aside>
+    <div id="explorerResizer" class="panel-resizer explorer-resizer" title="Resize Explorer"></div>
+
+    <main class="center editor-center">
+      <div class="editor-toolbar">
+        <div class="toolbar-group state-caption">
+          <span class="caption-dot"></span>
+          <strong id="activeStateTitle">EMPTY WORKSPACE</strong>
+        </div>
+        <div class="toolbar-sep"></div>
+        <select id="presetSelect">
+          <option value="1366x768">1366×768</option>
+          <option value="1920x1080">1920×1080</option>
+          <option value="1280x720">1280×720</option>
+          <option value="1440x900">1440×900</option>
+          <option value="390x844">390×844</option>
+        </select>
+        <label class="numeric">W <input id="viewportW" type="number" value="1366"></label>
+        <label class="numeric">H <input id="viewportH" type="number" value="768"></label>
+        <div class="toolbar-sep"></div>
+        <button id="fitBtn" class="toolbar-btn">Fit</button>
+        <button id="zoom100Btn" class="toolbar-btn">1:1</button>
+        <label class="zoom-control"><span>Zoom</span><input id="zoomRange" type="range" min="25" max="250" value="72"><b id="zoomLabel">72%</b></label>
+        <div class="toolbar-sep"></div>
+        <label class="compact-select">Snap
+          <select id="snapSelect"><option>1</option><option>2</option><option>4</option><option selected>8</option><option>16</option></select>
+        </label>
+        <button id="focusBtn" class="toolbar-btn" title="Focus selected">◎</button>
+        <button id="bgBtn" class="toolbar-btn" title="Roblox screenshot background">▧ Background</button>
+        <button id="bgClearBtn" class="icon-btn compact" title="Clear background">×</button>
+
+        <div class="compat-controls" aria-hidden="true">
+          <select id="modeSelect"><option value="design">DESIGN</option><option value="preview">PREVIEW</option></select>
+          <select id="sceneSelect"><option value="gameplay">Gameplay</option></select>
+          <input id="insetInput" type="number" value="36">
+          <input id="labelsToggle" type="checkbox">
+          <input id="gridToggle" type="checkbox" checked>
+          <input id="geometryToggle" type="checkbox" checked>
+          <input id="hiddenToggle" type="checkbox" checked>
+        </div>
+      </div>
+
+      <div id="stageScroller" class="stage-scroller">
+        <div id="stage" class="stage">
+          <div id="device" class="device engine-device">
+            <canvas id="viewportCanvas" class="engine-canvas" aria-label="Bloom UI canvas viewport"></canvas>
+            <div class="roblox-topbar"><span>Roblox safe area</span></div>
+            <div id="guiRoot" class="gui-root"></div>
+            <div id="geometryLayer" class="geometry-layer"></div>
+            <div id="emptyCanvas" class="empty-canvas">
+              <div class="empty-icon">✿</div>
+              <strong>Select a UI State</strong>
+              <span>Choose a state on the left. Click it again to return to this empty workspace.</span>
+              <small>Every visible element is a real Roblox GUI object from the model.</small>
+              <button id="createFirstFrame" class="tool-action primary">＋ Frame</button>
+            </div>
+            <div id="selectionOverlay" class="selection-overlay hidden">
+              <div class="sel-caption"></div>
+              <i data-dir="nw"></i><i data-dir="n"></i><i data-dir="ne"></i>
+              <i data-dir="e"></i><i data-dir="se"></i><i data-dir="s"></i>
+              <i data-dir="sw"></i><i data-dir="w"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <footer class="statusbar">
+        <span id="statusText">Ready</span><span class="engine-badge">ENGINE V2 · CANVAS2D</span>
+        <span id="pixelReadout">—</span>
+        <span class="status-hint">Drag: move fragment · Alt+drag: exact child · Two-finger: pan · Pinch: zoom · Del: delete</span>
+      </footer>
+    </main>
+
+    <div id="inspectorResizer" class="panel-resizer inspector-resizer" title="Resize Inspector"></div>
+    <aside class="sidebar inspector-panel">
+      <div class="panel-head">
+        <div><strong>Inspector</strong><small id="selectionKind">Nothing selected</small></div>
+      </div>
+      <div class="quick-layout">
+        <div class="quick-row">
+          <button id="fitParentBtn" class="mini-action">Fit parent</button>
+          <button id="freeLayoutBtn" class="mini-action">Bake layout</button>
+          <button id="childrenVisibleBtn" class="mini-action">Show children</button>
+        </div>
+        <div class="quick-row">
+          <label>Cols <input id="arrangeColumns" type="number" value="3" min="1" max="12"></label>
+          <label>Gap <input id="arrangeGap" type="number" value="8" min="0" max="64"></label>
+        </div>
+        <div class="quick-row">
+          <button id="tidyBtn" class="icon-btn compact" title="Tidy">▦</button>
+          <button id="spaceXBtn" class="icon-btn compact" title="Distribute X">↔</button>
+          <button id="spaceYBtn" class="icon-btn compact" title="Distribute Y">↕</button>
+        </div>
+      </div>
+      <div id="inspector" class="inspector empty">
+        <div class="empty-state">Select an object on canvas or in Explorer.</div>
+      </div>
+      <div class="inspector-dev">
+        <div id="computedBox" class="computed-box"><span>X <strong>0</strong></span><span>Y <strong>0</strong></span><span>W <strong>0</strong></span><span>H <strong>0</strong></span></div>
+        <textarea id="rawProps" hidden></textarea>
+        <button id="applyRaw" hidden>Apply</button>
+      </div>
+    </aside>
+  </section>
+</div>
+
+<input id="fileInput" type="file" accept=".json,.model.json" hidden>
+<input id="bgInput" type="file" accept="image/*" hidden>
+<div id="toast" class="toast"></div>
+
+<dialog id="jsonDialog">
+  <div class="dialog-head"><strong>Roblox Model JSON</strong><button id="dialogClose">×</button></div>
+  <textarea id="jsonArea" spellcheck="false"></textarea>
+  <div class="dialog-actions">
+    <button id="dialogCopy" class="tool-action">Copy</button>
+    <button id="dialogApply" class="tool-action primary">Apply</button>
+  </div>
+</dialog>
+
+<script src="./engine-v2.js?v=1"></script>
+<script src="./app.js?v=20"></script>
+</body>
+</html>
