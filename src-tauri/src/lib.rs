@@ -79,6 +79,8 @@ struct BackupEntry {
 
 #[derive(Default, Serialize, Deserialize)]
 struct BackupStore {
+    #[serde(default)]
+    project_id: String,
     backups: Vec<BackupEntry>,
 }
 
@@ -107,6 +109,8 @@ struct TaskEntry {
 
 #[derive(Default, Serialize, Deserialize)]
 struct TaskStore {
+    #[serde(default)]
+    project_id: String,
     tasks: Vec<TaskEntry>,
 }
 
@@ -823,12 +827,28 @@ fn load_planner_store(root: &Path, date: &str) -> Result<PlannerStore, String> {
         .unwrap_or_default();
 
     let identity = project_manifest(root).project_id;
+    let defaults = project_planner_defaults(root);
+
     if !store.project_id.is_empty() && store.project_id != identity {
         store = PlannerStore::default();
+    } else if store.project_id.is_empty() && (!store.today.is_empty() || !store.roadmap.is_empty()) {
+        let default_ids = defaults
+            .today
+            .iter()
+            .chain(defaults.roadmap.iter())
+            .map(|task| task.id.as_str())
+            .collect::<BTreeSet<_>>();
+        let legacy_matches = store
+            .today
+            .iter()
+            .chain(store.roadmap.iter())
+            .any(|task| default_ids.contains(task.id.as_str()));
+        if !default_ids.is_empty() && !legacy_matches {
+            store = PlannerStore::default();
+        }
     }
     store.project_id = identity;
 
-    let defaults = project_planner_defaults(root);
     store.roadmap = merge_planner_tasks(&store.roadmap, defaults.roadmap);
 
     if store.today_date != date {
@@ -852,10 +872,16 @@ fn load_planner_store(root: &Path, date: &str) -> Result<PlannerStore, String> {
 
 
 fn load_task_store(root: &Path) -> TaskStore {
-    fs::read_to_string(task_store_path(root))
+    let mut store = fs::read_to_string(task_store_path(root))
         .ok()
-        .and_then(|text| serde_json::from_str(&text).ok())
-        .unwrap_or_default()
+        .and_then(|text| serde_json::from_str::<TaskStore>(&text).ok())
+        .unwrap_or_default();
+    let identity = project_manifest(root).project_id;
+    if !store.project_id.is_empty() && store.project_id != identity {
+        store = TaskStore::default();
+    }
+    store.project_id = identity;
+    store
 }
 
 fn save_task_store(root: &Path, store: &TaskStore) -> Result<(), String> {
@@ -934,10 +960,16 @@ fn truncate_output(value: String, max_chars: usize) -> String {
 
 
 fn load_backup_store(root: &Path) -> BackupStore {
-    fs::read_to_string(backup_store_path(root))
+    let mut store = fs::read_to_string(backup_store_path(root))
         .ok()
-        .and_then(|text| serde_json::from_str(&text).ok())
-        .unwrap_or_default()
+        .and_then(|text| serde_json::from_str::<BackupStore>(&text).ok())
+        .unwrap_or_default();
+    let identity = project_manifest(root).project_id;
+    if !store.project_id.is_empty() && store.project_id != identity {
+        store = BackupStore::default();
+    }
+    store.project_id = identity;
+    store
 }
 
 fn save_backup_store(root: &Path, store: &BackupStore) -> Result<(), String> {
