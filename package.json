@@ -1,0 +1,21 @@
+{
+  "name": "roflow",
+  "private": true,
+  "version": "0.0.10",
+  "description": "RoFlow desktop workflow hub for Roblox development.",
+  "scripts": {
+    "tauri": "tauri",
+    "prepare:roflow": "node ./scripts/sync-ui-studio.mjs && tauri icon ./web/roflow-icon.svg",
+    "predev": "npm run prepare:roflow",
+    "dev": "tauri dev",
+    "prebuild": "npm run prepare:roflow",
+    "build": "tauri build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}
