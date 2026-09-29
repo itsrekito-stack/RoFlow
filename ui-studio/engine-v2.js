@@ -48,7 +48,7 @@ const sortChildren=children=>(children||[]).map((node,index)=>({node,index})).so
  return ao===bo?a.index-b.index:ao-bo;
 }).map(entry=>entry.node);
 
-class BloomEditorEngineV2{
+class RoFlowEditorEngineV2{
  constructor(options){
   this.canvas=options.canvas;
   this.proxyHost=options.proxyHost;
@@ -430,5 +430,5 @@ class BloomEditorEngineV2{
  getRect(id){const item=this.getItem(id);return item?{...item.rect}:null}
 }
 
-window.BloomEditorEngineV2=BloomEditorEngineV2;
+window.RoFlowEditorEngineV2=RoFlowEditorEngineV2;
 })();
