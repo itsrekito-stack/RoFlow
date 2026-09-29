@@ -1,0 +1,21 @@
+[package]
+name = "roflow"
+version = "0.0.10"
+description = "RoFlow desktop workflow hub"
+authors = ["Bloom RNG"]
+edition = "2021"
+
+[lib]
+name = "roflow_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
