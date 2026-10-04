@@ -649,6 +649,7 @@ async function commitChanges(){
 }
 
 async function startRojo(){
+ $("#rojoOutput").textContent="Starting Rojo and checking localhost:34872…";
  try{
   applyRojo(await invoke("rojo_start"));
   $("#rojoOutput").textContent="Rojo verified at http://127.0.0.1:34872/ for "+state.buildFileName+".";
