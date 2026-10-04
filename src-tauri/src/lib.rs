@@ -7,13 +7,16 @@ use std::{
     fs,
     io::{Read, Seek, SeekFrom},
     path::{Component, Path, PathBuf},
+    net::{SocketAddr, TcpStream},
     process::{Child, Command, Stdio},
     sync::Mutex,
-    time::{SystemTime, UNIX_EPOCH},
+    thread,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 const PROJECT_MANIFEST_PATH: &str = "roflow.project.json";
+const ROJO_DEFAULT_PORT: u16 = 34872;
 const LEGACY_PLANNER_DEFAULTS_PATH: &str = "tools/roflow/planner-defaults.json";
 const UPDATE_REMOTE_REF: &str = "refs/remotes/roflow-updater/roflow-update";
 const UPDATE_SOURCE_URL: &str = "https://github.com/itsrekito-stack/RoFlow.git";
@@ -233,6 +236,8 @@ struct RojoStatus {
     project_file: bool,
     build_file: bool,
     build_file_name: String,
+    ready: bool,
+    diagnostic: String,
 }
 
 #[derive(Serialize)]
@@ -1991,6 +1996,25 @@ fn rojo_version(path: &Path) -> String {
         .unwrap_or_default()
 }
 
+fn rojo_port_open() -> bool {
+    TcpStream::connect_timeout(
+        &SocketAddr::from(([127, 0, 0, 1], ROJO_DEFAULT_PORT)),
+        Duration::from_millis(200),
+    )
+    .is_ok()
+}
+
+fn rojo_serve_log_path(root: &Path) -> PathBuf {
+    root.join(".roflow").join("rojo-serve.log")
+}
+
+fn rojo_serve_log(root: &Path) -> String {
+    read_file_tail(&rojo_serve_log_path(root), 12_000)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
 fn rojo_running(state: &AppState) -> Result<bool, String> {
     let mut guard = state.rojo_child.lock().map_err(|_| "Rojo state lock failed".to_string())?;
     let exited = if let Some(child) = guard.as_mut() {
@@ -2007,6 +2031,7 @@ fn rojo_running(state: &AppState) -> Result<bool, String> {
 fn rojo_status_for(root: &Path, state: &AppState) -> Result<RojoStatus, String> {
     let executable = find_rojo(root);
     let running = rojo_running(state)?;
+    let ready = running && rojo_port_open();
     let build_file_name = project_manifest(root).build_file;
     Ok(RojoStatus {
         available: executable.is_some(),
@@ -2019,6 +2044,8 @@ fn rojo_status_for(root: &Path, state: &AppState) -> Result<RojoStatus, String> 
         project_file: root.join("default.project.json").is_file(),
         build_file: root.join(&build_file_name).is_file(),
         build_file_name,
+        ready,
+        diagnostic: if running && !ready { rojo_serve_log(root) } else { String::new() },
     })
 }
 
@@ -2329,12 +2356,32 @@ fn rojo_status(state: State<AppState>) -> Result<RojoStatus, String> {
 fn rojo_start(state: State<AppState>) -> Result<RojoStatus, String> {
     let root = current_root(&state)?;
     if rojo_running(&state)? {
-        return rojo_status_for(&root, &state);
+        let status = rojo_status_for(&root, &state)?;
+        if status.ready {
+            return Ok(status);
+        }
+        return Err(format!(
+            "Rojo process exists, but port {ROJO_DEFAULT_PORT} is not accepting connections. Stop Serve and retry.\n{}",
+            status.diagnostic
+        ));
     }
+
     let executable = find_rojo(&root).ok_or("Rojo executable was not found")?;
     if !root.join("default.project.json").is_file() {
         return Err("default.project.json is missing".into());
     }
+    if rojo_port_open() {
+        return Err(format!(
+            "Port {ROJO_DEFAULT_PORT} is already in use by another process. Stop the other Rojo server before starting this project."
+        ));
+    }
+
+    let log_path = rojo_serve_log_path(&root);
+    fs::create_dir_all(root.join(".roflow"))
+        .map_err(|e| format!("Failed to create Rojo log folder: {e}"))?;
+    let log_file = fs::File::create(&log_path)
+        .map_err(|e| format!("Failed to open Rojo log at {}: {e}", log_path.display()))?;
+    let stdout = log_file.try_clone().map_err(|e| format!("Failed to capture Rojo output: {e}"))?;
 
     let mut command = Command::new(&executable);
     command
@@ -2342,12 +2389,42 @@ fn rojo_start(state: State<AppState>) -> Result<RojoStatus, String> {
         .arg("default.project.json")
         .current_dir(&root)
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stdout(Stdio::from(stdout))
+        .stderr(Stdio::from(log_file));
     hide_console(&mut command);
+
     let child = command.spawn().map_err(|e| format!("Failed to start Rojo: {e}"))?;
     *state.rojo_child.lock().map_err(|_| "Rojo state lock failed".to_string())? = Some(child);
-    rojo_status_for(&root, &state)
+
+    // A live PID is not proof that Roblox Studio can reach the Rojo server.
+    for _ in 0..40 {
+        if !rojo_running(&state)? {
+            break;
+        }
+        if rojo_port_open() {
+            return rojo_status_for(&root, &state);
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+
+    {
+        let mut guard = state.rojo_child.lock().map_err(|_| "Rojo state lock failed".to_string())?;
+        if let Some(mut child) = guard.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+
+    let diagnostic = rojo_serve_log(&root);
+    Err(format!(
+        "Rojo failed to listen on http://127.0.0.1:{ROJO_DEFAULT_PORT}/.\n{}\nLog: {}",
+        if diagnostic.is_empty() {
+            "No output from Rojo. Check that the selected rojo.exe is a working CLI binary.".to_string()
+        } else {
+            diagnostic
+        },
+        log_path.display()
+    ))
 }
 
 #[tauri::command]
