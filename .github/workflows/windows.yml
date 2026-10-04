@@ -47,11 +47,14 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Rust compile check
-        run: cargo check --manifest-path src-tauri/Cargo.toml
-
       - name: Install frontend dependencies
         run: npm install
+
+      - name: Generate Tauri icons
+        run: npm run prepare:roflow
+
+      - name: Rust compile check
+        run: cargo check --manifest-path src-tauri/Cargo.toml
 
       - name: Stamp installer build version
         shell: pwsh
