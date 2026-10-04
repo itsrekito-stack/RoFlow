@@ -316,12 +316,17 @@ async function runHealth(){
 function applyRojo(status){
  state.rojo=status;
  state.buildFileName=status.buildFileName||state.status?.buildFile||state.buildFileName||"Project.rbxl";
- $("#rojoValue").textContent=status.running?"RUNNING":status.available?"READY":"NOT FOUND";
- $("#rojoValue").style.color=status.running?"#66e0a6":status.available?"#58b1ff":"#ff697b";
+ const serving=Boolean(status.running&&status.ready);
+ const unavailable=Boolean(status.running&&!status.ready);
+ $("#rojoBuildFile").textContent=state.buildFileName;
+ $("#rojoValue").textContent=serving?"RUNNING":unavailable?"NO PORT":status.available?"READY":"NOT FOUND";
+ $("#rojoValue").style.color=serving?"#66e0a6":unavailable?"#ffbe40":status.available?"#58b1ff":"#ff697b";
  $("#rojoStats").textContent=status.available?(status.version||status.path||"Rojo available"):"Install Rojo or place rojo.exe in the project/Desktop/Rojo.";
- $("#rojoPageState").textContent=status.running?"Rojo serve is running":status.available?"Rojo is ready":"Rojo not found";
- $("#rojoPageState").style.color=status.running?"#66e0a6":status.available?"#58b1ff":"#ff697b";
- $("#rojoPageDetail").textContent=status.available?((status.version||status.path)+(status.projectFile?" · project config ready":" · default.project.json missing")):"RoFlow checked project folder, Desktop\\Rojo and PATH.";
+ $("#rojoPageState").textContent=serving?"Rojo server is listening":unavailable?"Rojo process running, but port 34872 is closed":status.available?"Rojo is ready":"Rojo not found";
+ $("#rojoPageState").style.color=serving?"#66e0a6":unavailable?"#ffbe40":status.available?"#58b1ff":"#ff697b";
+ const info=status.available?((status.version||status.path)+(status.projectFile?" · project config ready":" · default.project.json missing")):"RoFlow checked project folder, Desktop\\Rojo and PATH.";
+ $("#rojoPageDetail").textContent=info+(serving?" · localhost:34872 reachable":unavailable?" · localhost:34872 unreachable; see Output":"");
+ if(unavailable&&status.diagnostic)$("#rojoOutput").textContent="Rojo startup output:\n"+status.diagnostic;
  $("#startRojoBtn").disabled=!status.available||status.running||!status.projectFile;
  $("#stopRojoBtn").disabled=!status.running;
  $("#buildBtn").disabled=!status.available||!status.projectFile;
@@ -644,7 +649,15 @@ async function commitChanges(){
 }
 
 async function startRojo(){
- try{applyRojo(await invoke("rojo_start"));$("#rojoOutput").textContent="Rojo serve started.";log("Rojo serve started")}catch(error){$("#rojoOutput").textContent=String(error);log("Rojo start failed: "+error)}
+ try{
+  applyRojo(await invoke("rojo_start"));
+  $("#rojoOutput").textContent="Rojo verified at http://127.0.0.1:34872/ for "+state.buildFileName+".";
+  log("Rojo serve is listening on port 34872");
+ }catch(error){
+  $("#rojoOutput").textContent=String(error);
+  log("Rojo start failed: "+error);
+  await refreshRojo();
+ }
 }
 async function stopRojo(){
  try{applyRojo(await invoke("rojo_stop"));$("#rojoOutput").textContent="Rojo serve stopped.";log("Rojo serve stopped")}catch(error){$("#rojoOutput").textContent=String(error);log("Rojo stop failed: "+error)}
