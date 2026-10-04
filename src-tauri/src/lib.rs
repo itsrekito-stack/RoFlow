@@ -2397,7 +2397,7 @@ fn rojo_start(state: State<AppState>) -> Result<RojoStatus, String> {
     *state.rojo_child.lock().map_err(|_| "Rojo state lock failed".to_string())? = Some(child);
 
     // A live PID is not proof that Roblox Studio can reach the Rojo server.
-    for _ in 0..40 {
+    for _ in 0..120 {
         if !rojo_running(&state)? {
             break;
         }
