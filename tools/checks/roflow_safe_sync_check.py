@@ -27,5 +27,12 @@ sync=src[src.index("fn safe_ai_sync"):src.index("fn list_backups",src.index("fn 
 if sync.index("cleanup_roflow_temp_index(&root)?") > sync.index("git_index_lock(&root)?"):
     raise AssertionError("RoFlow temp index cleanup must happen before sync lock validation")
 
+need('if let Ok(configured_model) = primary_ui_model_path(&root)', "allow sync before first authored UI state")
+need('if let (Some(primary_model), Some(model_path), Some(base_model)) =', "merge only when prior UI model exists")
+if 'let primary_model = primary_ui_model_path(&root)?;' in sync:
+    raise AssertionError("AI Sync must not require a configured UI model before pulling a new manifest")
+if sync.index("if let Ok(configured_model) = primary_ui_model_path(&root)") > sync.index('git(&root, &["pull", "--ff-only"])'):
+    raise AssertionError("Only existing local UI models may be captured before git pull")
+
 print("RoFlow Safe AI Sync contract: PASS")
 print("Windows-safe GIT_INDEX_FILE, RoFlow temp-lock cleanup, conflict recovery and stash-preserving rollback are guarded.")

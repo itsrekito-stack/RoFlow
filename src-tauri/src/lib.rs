@@ -1492,46 +1492,60 @@ fn safe_ai_sync(editor_model: Option<Value>, state: State<AppState>) -> Result<S
 
     let before = status_for(&root)?;
     let old_head = before.head.clone();
-    let primary_model = primary_ui_model_path(&root)?;
-    let model_path = root.join(&primary_model);
-    let base_spec = format!("HEAD:{primary_model}");
-    let base_text = git(&root, &["show", &base_spec])?;
-    let base_model = parse_json_text(&base_text)
-        .ok_or_else(|| format!("HEAD {primary_model} is invalid"))?;
-
-    let model_dirty = !git(
-        &root,
-        &["status", "--porcelain", "--", primary_model.as_str()],
-    )?
-    .trim()
-    .is_empty();
-    let disk_text = fs::read_to_string(&model_path).ok();
-    let disk_model = disk_text.as_deref().and_then(parse_json_text);
-    let local_model = if model_dirty {
-        editor_model.or(disk_model)
-    } else {
-        None
-    };
-
+    // A newly created project may have no authored UI model in its local
+    // manifest yet. Sync its Git history first; the pulled manifest can then
+    // enable UI Studio and future semantic merges without a bootstrap deadlock.
+    let mut primary_model: Option<String> = None;
+    let mut model_path: Option<PathBuf> = None;
+    let mut base_model: Option<Value> = None;
+    let mut local_model: Option<Value> = None;
     let mut recovery_backup = String::new();
-    if model_dirty {
-        recovery_backup = backup_model(&root, &primary_model)?;
-        if local_model.is_none() {
-            return Err(format!(
-                "{primary_model} is invalid. Raw file preserved at {}",
-                recovery_backup
-            ));
-        }
-        git(
+
+    if let Ok(configured_model) = primary_ui_model_path(&root) {
+        let path = root.join(&configured_model);
+        let base_spec = format!("HEAD:{configured_model}");
+        let base_text = git(&root, &["show", &base_spec])?;
+        let base = parse_json_text(&base_text)
+            .ok_or_else(|| format!("HEAD {configured_model} is invalid"))?;
+
+        let model_dirty = !git(
             &root,
-            &[
-                "restore",
-                "--staged",
-                "--worktree",
-                "--",
-                primary_model.as_str(),
-            ],
-        )?;
+            &["status", "--porcelain", "--", configured_model.as_str()],
+        )?
+        .trim()
+        .is_empty();
+        let disk_text = fs::read_to_string(&path).ok();
+        let disk_model = disk_text.as_deref().and_then(parse_json_text);
+        let pending_model = if model_dirty {
+            editor_model.or(disk_model)
+        } else {
+            None
+        };
+
+        if model_dirty {
+            recovery_backup = backup_model(&root, &configured_model)?;
+            if pending_model.is_none() {
+                return Err(format!(
+                    "{configured_model} is invalid. Raw file preserved at {}",
+                    recovery_backup
+                ));
+            }
+            git(
+                &root,
+                &[
+                    "restore",
+                    "--staged",
+                    "--worktree",
+                    "--",
+                    configured_model.as_str(),
+                ],
+            )?;
+        }
+
+        primary_model = Some(configured_model);
+        model_path = Some(path);
+        base_model = Some(base);
+        local_model = pending_model;
     }
 
     let mut stashed = false;
@@ -1612,15 +1626,19 @@ fn safe_ai_sync(editor_model: Option<Value>, state: State<AppState>) -> Result<S
         }
     }
 
-    let remote_text = fs::read_to_string(&model_path).map_err(|e| e.to_string())?;
-    let remote_model = parse_json_text(&remote_text)
-        .ok_or_else(|| format!("Pulled {primary_model} is invalid"))?;
     let mut model_merged = false;
+    if let (Some(primary_model), Some(model_path), Some(base_model)) =
+        (primary_model.as_deref(), model_path.as_ref(), base_model.as_ref())
+    {
+        let remote_text = fs::read_to_string(model_path).map_err(|e| e.to_string())?;
+        let remote_model = parse_json_text(&remote_text)
+            .ok_or_else(|| format!("Pulled {primary_model} is invalid"))?;
 
-    if let Some(local) = local_model {
-        let merged = merge_value(&base_model, &local, &remote_model);
-        write_json(&model_path, &merged)?;
-        model_merged = true;
+        if let Some(local) = local_model {
+            let merged = merge_value(base_model, &local, &remote_model);
+            write_json(model_path, &merged)?;
+            model_merged = true;
+        }
     }
 
     recovered_conflicts.sort();
